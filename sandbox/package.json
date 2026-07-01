@@ -1,5 +1,5 @@
 {
-  "name": "@workspace/client",
+  "name": "@tipt/sandbox",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "preview": "vite preview --config vite.config.ts --host 0.0.0.0"
   },
   "dependencies": {
-    "lightning-mpp-extension-sdk": "workspace:*",
+    "@tipt/sdk": "workspace:*",
     "lucide-react": "^0.545.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",

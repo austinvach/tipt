@@ -1,5 +1,5 @@
 {
-  "name": "lightning-mpp-extension-sdk",
+  "name": "@tipt/sdk",
   "version": "0.1.2",
   "description": "Browser-side Lightning MPP client that routes 402 (Payment Required) approvals through a compatible browser extension event bridge.",
   "license": "MIT",

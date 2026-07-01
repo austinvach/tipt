@@ -77,7 +77,7 @@ importers:
 
   sandbox:
     dependencies:
-      lightning-mpp-extension-sdk:
+      '@tipt/sdk':
         specifier: workspace:*
         version: link:../sdk
       lucide-react:
