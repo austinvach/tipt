@@ -1,6 +1,6 @@
 import {
   createLightningMppExtensionClient,
-} from "lightning-mpp-extension-sdk";
+} from "@tipt/sdk";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || "/api";
 const MPP_EXTENSION_EVENT = "mpp:extension";
