@@ -1,0 +1,15 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://mppapi.replit.app/api/$1"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

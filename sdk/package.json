@@ -1,0 +1,68 @@
+{
+  "name": "lightning-mpp-extension-sdk",
+  "version": "0.1.2",
+  "description": "Browser-side Lightning MPP client that routes 402 (Payment Required) approvals through a compatible browser extension event bridge.",
+  "license": "MIT",
+  "author": "austinvach",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "prepare": "pnpm run build",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "lightning",
+    "mpp",
+    "bitcoin",
+    "402",
+    "payment-required",
+    "browser-extension",
+    "spark"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/austinvach/lightning-mpp-extension-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/austinvach/lightning-mpp-extension-sdk/issues"
+  },
+  "homepage": "https://github.com/austinvach/lightning-mpp-extension-sdk#readme",
+  "dependencies": {
+    "@buildonspark/lightning-mpp-sdk": "^0.1.4",
+    "@buildonspark/spark-sdk": "^0.7.15",
+    "mppx": "^0.3.15",
+    "viem": "^2.46.2"
+  },
+  "devDependencies": {
+    "happy-dom": "^12.10.3",
+    "tsup": "^8.3.5",
+    "typescript": "~5.9.3",
+    "vitest": "^1.0.4"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
