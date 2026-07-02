@@ -66,6 +66,29 @@ function normalizeFilm(raw: unknown): FilmInfo | null {
   };
 }
 
+function buildClient() {
+  return createLightningMppExtensionClient({
+    polyfill: false,
+    extensionProbeTimeoutMs: 1500,
+  });
+}
+
+function explainUnlockError(message: string): string {
+  if (message.includes('locked')) {
+    return 'Wallet is locked. Open the extension popup and unlock with your PIN, then retry.';
+  }
+  if (message.includes('declined')) {
+    return 'Payment was declined in the extension approval popup.';
+  }
+  if (message.includes('unavailable')) {
+    return 'Wallet is not ready. Ensure TIPT is loaded, wallet setup is complete, and the extension was reloaded after the latest build.';
+  }
+  if (message.includes('failed')) {
+    return 'Payment failed in the extension wallet flow. Check extension service-worker logs for the underlying wallet error and ensure the wallet has sufficient balance.';
+  }
+  return message;
+}
+
 function normalizeNewsPreview(raw: unknown): NewsPreview | null {
   if (!raw || typeof raw !== "object") {
     return null;
@@ -282,12 +305,7 @@ export async function probeExtension(timeoutMs = 1500): Promise<boolean> {
 
 export async function unlockStream(filmId: string): Promise<StreamResult> {
   console.log("[mpp] unlockStream: requesting paid stream via SDK client", { filmId });
-  const client = createLightningMppExtensionClient({
-    polyfill: false,
-    extensionProbeTimeoutMs: 1500,
-    preferSpark: true,
-    includeSparkInvoice: true,
-  });
+  const client = buildClient();
 
   const target = `${API_BASE}/movies/${encodeURIComponent(filmId)}`;
 
@@ -308,19 +326,13 @@ export async function unlockStream(filmId: string): Promise<StreamResult> {
     if (message.includes("Missing WWW-Authenticate header")) {
       throw new Error(`${message}. Ensure ${API_BASE}/movies/:id returns the upstream payment challenge response.`);
     }
-
-    throw new Error(`Stream unlock failed: ${message}`);
+    throw new Error(`Stream unlock failed: ${explainUnlockError(message)}`);
   }
 }
 
 export async function unlockNewsArticle(preview: NewsPreview): Promise<NewsArticle> {
   console.log("[mpp] unlockNewsArticle: requesting paid article via SDK client", { id: preview.id });
-  const client = createLightningMppExtensionClient({
-    polyfill: false,
-    extensionProbeTimeoutMs: 1500,
-    preferSpark: true,
-    includeSparkInvoice: true,
-  });
+  const client = buildClient();
 
   const target = `${API_BASE}/news/${encodeURIComponent(preview.id)}`;
   const response = await client.fetch(target, { method: "GET" });
@@ -349,12 +361,7 @@ export async function unlockGeneratedImage({
     throw new Error("Missing generation prompt.");
   }
 
-  const client = createLightningMppExtensionClient({
-    polyfill: false,
-    extensionProbeTimeoutMs: 1500,
-    preferSpark: true,
-    includeSparkInvoice: true,
-  });
+  const client = buildClient();
 
   const target = `${API_BASE}/image`;
 
