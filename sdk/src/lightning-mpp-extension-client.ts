@@ -1,21 +1,21 @@
-import { charge as lightningChargeMethod } from '@buildonspark/lightning-mpp-sdk';
-import { Mppx } from '@buildonspark/lightning-mpp-sdk/client';
-import { Method, PaymentRequest } from 'mppx';
+import { charge as lightningCharge, Mppx, type WalletLike } from '@buildonspark/lightning-mpp-sdk/client';
 import type { Mppx as MppxClient } from 'mppx/client';
 import {
   DEFAULT_REQUESTED_INTENTS,
   DEFAULT_REQUESTED_PAYMENT_METHODS,
-  MPP_CHALLENGE_EVENT,
-  MPP_CREDENTIAL_EVENT,
   MPP_EVENT_BRIDGE_PROTOCOL_VERSION,
   MPP_EXTENSION_EVENT,
+  MPP_WALLET_RPC_EVENT,
+  MPP_WALLET_RPC_RESPONSE_EVENT,
   buildMppProbeRequestDetail,
-  type MppExtChallengeDetail,
-  type MppExtCredentialDetail,
   type MppResponseDetail,
+  type MppWalletRpcMethod,
+  type MppWalletRpcRequestDetail,
+  type MppWalletRpcResponseDetail,
 } from './event-bridge';
 
 const DEFAULT_PAYMENT_TIMEOUT_MS = 90_000;
+const DEFAULT_WALLET_READ_TIMEOUT_MS = 15_000;
 const DEFAULT_EXTENSION_PROBE_TIMEOUT_MS = 1_500;
 
 function requirePageEventBridge(): void {
@@ -29,13 +29,6 @@ function randomRequestId(): string {
     return crypto.randomUUID();
   }
   return `mpp-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function parseAmountSats(value: string): number | undefined {
-  if (!/^\d+$/.test(value)) return undefined;
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) return undefined;
-  return parsed;
 }
 
 export interface ProbeLightningMppExtensionOptions {
@@ -97,58 +90,120 @@ export function probeLightningMppExtension(
   });
 }
 
-function requestCredentialFromExtension(
-  detail: MppExtChallengeDetail,
+/**
+ * Dispatches a single wallet-RPC request over the page event bridge and
+ * resolves with the extension's raw result. The extension gates the
+ * `payLightningInvoice` call behind its own approval flow; read methods
+ * (`getLightningSendRequest`, `getTransfer`) are read-only follow-ups.
+ */
+function callWalletRpc(
+  method: MppWalletRpcMethod,
+  params: unknown,
   timeoutMs: number,
-): Promise<string> {
-  return new Promise<string>((resolve, reject) => {
+): Promise<unknown> {
+  return new Promise<unknown>((resolve, reject) => {
+    const requestId = randomRequestId();
+
     const timer = window.setTimeout(() => {
       cleanup();
-      reject(new Error('Timed out waiting for MPP extension payment approval.'));
+      reject(new Error(`Timed out waiting for MPP extension wallet RPC "${method}".`));
     }, timeoutMs);
 
-    const onPayResponse = (event: Event) => {
-      const response = (event as CustomEvent<MppExtCredentialDetail>).detail;
-      if (!response || response.requestId !== detail.requestId) return;
-
+    const onResponse = (event: Event) => {
+      const response = (event as CustomEvent<MppWalletRpcResponseDetail>).detail;
+      if (!response || response.requestId !== requestId) return;
       cleanup();
-
-      if (!response.approved) {
-        reject(new Error(response.error ?? 'MPP extension declined payment.'));
+      if (response.ok === false) {
+        reject(new Error(response.error ?? `MPP extension wallet RPC "${method}" failed.`));
         return;
       }
-      if (!response.credential) {
-        reject(new Error('MPP extension approved payment but returned no credential.'));
-        return;
-      }
-      resolve(response.credential);
+      resolve(response.result);
     };
 
     const cleanup = () => {
       window.clearTimeout(timer);
-      window.removeEventListener(MPP_CREDENTIAL_EVENT, onPayResponse as EventListener);
+      window.removeEventListener(MPP_WALLET_RPC_RESPONSE_EVENT, onResponse as EventListener);
     };
 
-    window.addEventListener(MPP_CREDENTIAL_EVENT, onPayResponse as EventListener);
-    window.dispatchEvent(new CustomEvent(MPP_CHALLENGE_EVENT, { detail }));
+    window.addEventListener(MPP_WALLET_RPC_RESPONSE_EVENT, onResponse as EventListener);
+    const detail: MppWalletRpcRequestDetail = { requestId, method, params };
+    window.dispatchEvent(new CustomEvent(MPP_WALLET_RPC_EVENT, { detail }));
   });
+}
+
+interface BridgeWalletOptions {
+  paymentTimeoutMs: number;
+  readTimeoutMs: number;
+  probe?: () => Promise<void>;
+}
+
+/**
+ * Builds a `WalletLike` proxy whose methods are forwarded to the extension
+ * over the event bridge. The wallet (seed + SparkWallet SDK) never leaves the
+ * extension; only individual RPC calls cross the boundary, and their raw
+ * results flow back to `@buildonspark/lightning-mpp-sdk`'s `charge`, which
+ * owns preimage resolution (Lightning and Spark routes) and credential
+ * serialization.
+ */
+function createBridgeWallet(options: BridgeWalletOptions): WalletLike {
+  return {
+    async payLightningInvoice(params) {
+      // Confirm the extension is present and compatible right before the only
+      // fund-moving call. Read methods below never move funds, so they skip it.
+      if (options.probe) await options.probe();
+      return callWalletRpc('payLightningInvoice', params, options.paymentTimeoutMs) as ReturnType<
+        WalletLike['payLightningInvoice']
+      >;
+    },
+    async getLightningSendRequest(id) {
+      return callWalletRpc('getLightningSendRequest', { id }, options.readTimeoutMs) as ReturnType<
+        WalletLike['getLightningSendRequest']
+      >;
+    },
+    async getTransfer(id) {
+      return callWalletRpc('getTransfer', { id }, options.readTimeoutMs) as ReturnType<
+        NonNullable<WalletLike['getTransfer']>
+      >;
+    },
+    // Not needed by `charge` (invoice creation lives in the extension's own
+    // wallet UI), but required to satisfy the structural WalletLike type.
+    async createLightningInvoice() {
+      throw new Error('createLightningInvoice is not supported over the extension bridge.');
+    },
+    // No-op: the extension owns the SparkWallet lifecycle, so there are no
+    // page-side connections to tear down.
+    async cleanupConnections() {
+      /* wallet lifecycle owned by the extension */
+    },
+  };
 }
 
 export interface CreateLightningMppExtensionClientOptions {
   fetch?: typeof globalThis.fetch;
   polyfill?: boolean;
   paymentTimeoutMs?: number;
+  walletReadTimeoutMs?: number;
   probeExtension?: boolean;
   extensionProbeTimeoutMs?: number;
   paymentMethods?: string[];
   intents?: string[];
   preferSpark?: boolean;
+  /**
+   * Retained for API compatibility. The Spark route is now detected from the
+   * wallet's `payLightningInvoice` result during preimage resolution, so this
+   * flag no longer affects the payment flow.
+   */
   includeSparkInvoice?: boolean;
+  maxFeeSats?: number;
+  network?: 'mainnet' | 'regtest' | 'signet';
 }
 
 /**
- * Creates an MPP Lightning client that routes 402 payment approvals through
- * the MPP browser extension event bridge.
+ * Creates an MPP Lightning client that routes 402 payments through the MPP
+ * browser extension. The extension is a thin wallet-RPC passthrough: it pays
+ * (after user approval) and answers read-only follow-ups, while this SDK and
+ * `@buildonspark/lightning-mpp-sdk` own invoice verification, preimage
+ * resolution, and credential serialization.
  */
 export function createLightningMppExtensionClient(
   options: CreateLightningMppExtensionClientOptions = {},
@@ -156,53 +211,38 @@ export function createLightningMppExtensionClient(
   requirePageEventBridge();
 
   const paymentTimeoutMs = options.paymentTimeoutMs ?? DEFAULT_PAYMENT_TIMEOUT_MS;
+  const walletReadTimeoutMs = options.walletReadTimeoutMs ?? DEFAULT_WALLET_READ_TIMEOUT_MS;
   const extensionProbeTimeoutMs =
     options.extensionProbeTimeoutMs ?? DEFAULT_EXTENSION_PROBE_TIMEOUT_MS;
 
-  const extensionBackedCharge = Method.toClient(lightningChargeMethod, {
-    async createCredential({ challenge }) {
-      if (options.probeExtension !== false) {
-        await probeLightningMppExtension({
-          timeoutMs: extensionProbeTimeoutMs,
-          paymentMethods: options.paymentMethods,
-          intents: options.intents,
-        });
-      }
+  const probe =
+    options.probeExtension === false
+      ? undefined
+      : async () => {
+          await probeLightningMppExtension({
+            timeoutMs: extensionProbeTimeoutMs,
+            paymentMethods: options.paymentMethods,
+            intents: options.intents,
+          });
+        };
 
-      const invoice = challenge.request.methodDetails.invoice;
-      const requestId = randomRequestId();
-      const request = PaymentRequest.serialize(challenge.request);
-      const opaque = challenge.opaque ? PaymentRequest.serialize(challenge.opaque) : undefined;
+  const wallet = createBridgeWallet({
+    paymentTimeoutMs,
+    readTimeoutMs: walletReadTimeoutMs,
+    probe,
+  });
 
-      return requestCredentialFromExtension(
-        {
-          requestId,
-          invoice,
-          amountSats: parseAmountSats(challenge.request.amount),
-          ...(options.preferSpark !== undefined ? { preferSpark: options.preferSpark } : {}),
-          ...(options.includeSparkInvoice !== undefined
-            ? { includeSparkInvoice: options.includeSparkInvoice }
-            : {}),
-          scheme: 'Payment',
-          challenge: {
-            id: challenge.id,
-            realm: challenge.realm,
-            method: challenge.method,
-            intent: challenge.intent,
-            request,
-            expires: challenge.expires,
-            opaque,
-          },
-        },
-        paymentTimeoutMs,
-      );
-    },
+  const chargeMethod = lightningCharge({
+    wallet,
+    preferSpark: options.preferSpark ?? true,
+    ...(options.maxFeeSats !== undefined ? { maxFeeSats: options.maxFeeSats } : {}),
+    ...(options.network ? { network: options.network } : {}),
   });
 
   return Mppx.create({
     ...(options.fetch ? { fetch: options.fetch } : {}),
     polyfill: options.polyfill ?? true,
-    methods: [extensionBackedCharge],
+    methods: [chargeMethod],
   });
 }
 

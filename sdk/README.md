@@ -2,11 +2,16 @@
 
 Automatically routes `402 Payment Required` approvals through a compatible browser extension via a `window` event bridge.
 
+The extension is a **thin wallet-RPC passthrough**: it pays (after user approval)
+and answers read-only follow-ups, while this SDK and
+[`@buildonspark/lightning-mpp-sdk`](https://www.npmjs.com/package/@buildonspark/lightning-mpp-sdk)
+own invoice verification, preimage resolution, and credential serialization.
+
 When a server responds with a `402` Lightning payment challenge, the SDK:
 
 1. Probes the page for a compatible extension using the `mpp:extension` event (`type: 'request'`, `paymentMethods: ['lightning']`, `intents: ['charge']`).
-2. Forwards the Lightning `Payment` challenge to the extension via `mpp:challenge`.
-3. Waits for the extension's `mpp:credential` response and transparently retries the original request with the returned credential.
+2. Builds a wallet proxy whose calls (`payLightningInvoice`, `getLightningSendRequest`, `getTransfer`) are forwarded to the extension over the `mpp:wallet-rpc` event and answered on `mpp:wallet-rpc-response`. The wallet seed never leaves the extension.
+3. Runs `@buildonspark/lightning-mpp-sdk`'s `charge` against that proxy: it pays the invoice (the extension prompts the user), resolves the preimage across both the Lightning and Spark routes, serializes the credential, and transparently retries the original request.
 
 ## Installation
 
@@ -35,9 +40,13 @@ interface CreateLightningMppExtensionClientOptions {
   fetch?: typeof globalThis.fetch;
   /** Patch the global fetch (Mppx.create polyfill). Defaults to true. */
   polyfill?: boolean;
-  /** Timeout for the extension payment approval, in ms. Defaults to 90000. */
+  /** Timeout for the extension `payLightningInvoice` call (includes the user
+   *  approval prompt), in ms. Defaults to 90000. */
   paymentTimeoutMs?: number;
-  /** Probe for the extension before requesting credentials. Defaults to true. */
+  /** Timeout for each read-only wallet RPC (getLightningSendRequest /
+   *  getTransfer) used during preimage resolution, in ms. Defaults to 15000. */
+  walletReadTimeoutMs?: number;
+  /** Probe for the extension before paying. Defaults to true. */
   probeExtension?: boolean;
   /** Timeout for the extension probe, in ms. Defaults to 1500. */
   extensionProbeTimeoutMs?: number;
@@ -45,14 +54,16 @@ interface CreateLightningMppExtensionClientOptions {
   paymentMethods?: string[];
   /** Requested intents advertised during extension probe. */
   intents?: string[];
-  /**
-   * Optional payment-routing hint forwarded to the extension challenge payload.
-   * Mirrors lightning-mpp-sdk client option naming.
-   */
+  /** Prefer the Spark route when paying Lightning invoices. Defaults to true. */
   preferSpark?: boolean;
+  /** Maximum routing fee, in sats, passed to the wallet. */
+  maxFeeSats?: number;
+  /** Network to validate the invoice against ('mainnet' | 'regtest' | 'signet'). */
+  network?: 'mainnet' | 'regtest' | 'signet';
   /**
-   * Optional invoice-generation hint forwarded to the extension challenge payload.
-   * Mirrors lightning-mpp-sdk option naming.
+   * Retained for API compatibility. The Spark route is now detected from the
+   * wallet's `payLightningInvoice` result during preimage resolution, so this
+   * flag no longer affects the payment flow.
    */
   includeSparkInvoice?: boolean;
 }
@@ -87,7 +98,7 @@ restoreLightningMppExtensionFetch();
 ## Requirements
 
 - A browser `window` context (the SDK throws if `window` is unavailable).
-- A compatible extension installed on the page that responds to the `mpp:extension`, `mpp:challenge`, and `mpp:credential` events.
+- A compatible extension installed on the page that responds to the `mpp:extension` probe and the `mpp:wallet-rpc` / `mpp:wallet-rpc-response` wallet-RPC bridge.
 
 ## Build Process
 

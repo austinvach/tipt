@@ -1,4 +1,4 @@
-import { expect, afterEach, vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 
 // Mock window.crypto.randomUUID if needed
 if (!globalThis.crypto) {

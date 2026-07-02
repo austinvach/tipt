@@ -24,9 +24,16 @@ export const MSG = {
   PAY_INVOICE: 'TIPT_PAY_INVOICE',
   HAS_WALLET: 'TIPT_HAS_WALLET',
   DISPOSE_WALLET: 'TIPT_DISPOSE_WALLET',
-  OFFSCREEN_PAY_INVOICE: 'TIPT_OFFSCREEN_PAY_INVOICE',
-  // Spark-native transfer to a Spark address (background → offscreen).
-  // Separate from OFFSCREEN_PAY_INVOICE because the SDK call is different
+  // Thin wallet-RPC passthroughs for the MPP charge flow (background →
+  // offscreen). These return the RAW SparkWallet results (projected to the
+  // fields the page-side @buildonspark/lightning-mpp-sdk consumes) without
+  // interpreting them — no preimage polling, no credential building. The
+  // page-side SDK owns preimage resolution and credential serialization.
+  OFFSCREEN_PAY_LIGHTNING_RAW: 'TIPT_OFFSCREEN_PAY_LIGHTNING_RAW',
+  OFFSCREEN_GET_SEND_REQUEST: 'TIPT_OFFSCREEN_GET_SEND_REQUEST',
+  OFFSCREEN_GET_TRANSFER: 'TIPT_OFFSCREEN_GET_TRANSFER',
+  // Spark-native transfer to a Spark address (background → offscreen), used
+  // by the extension's own send/tip UI. The SDK call is different
   // (wallet.transfer vs wallet.payLightningInvoice) and there is no
   // Lightning preimage to return — the response carries the Spark
   // transfer id instead.
@@ -40,7 +47,10 @@ export const MSG = {
 
   // 402 / MPP background ops
   MPP_REQUEST_TRIGGERED: 'TIPT_MPP_REQUEST_TRIGGERED',
-  PAY_REQUEST_402: 'TIPT_402_PAY_REQUEST',
+  // Wallet-RPC bridge (content → background): forwards a single wallet method
+  // call from the page-side SDK. The `payLightningInvoice` method is gated by
+  // the approval flow; read methods are read-only follow-ups.
+  WALLET_RPC_402: 'TIPT_402_WALLET_RPC',
   CONFIRM_RESPONSE_402: 'TIPT_402_CONFIRM_RESPONSE',
   ALLOWLIST_LIST_402: 'TIPT_402_ALLOWLIST_LIST',
   ALLOWLIST_REMOVE_402: 'TIPT_402_ALLOWLIST_REMOVE',

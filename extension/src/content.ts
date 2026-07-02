@@ -12,50 +12,23 @@ const DEBUG = (import.meta as { env?: { DEV?: boolean } }).env?.DEV === true;
 function log(...args: unknown[]): void { if (DEBUG) console.log(...args); }
 
 const MPP_REQUEST_TRIGGERED_EVENT = 'TIPT_MPP_REQUEST_TRIGGERED';
-const PAY_REQUEST_402 = 'TIPT_402_PAY_REQUEST';
+const WALLET_RPC_402 = 'TIPT_402_WALLET_RPC';
+const MPP_WALLET_RPC_EVENT = 'mpp:wallet-rpc';
+const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
+const WALLET_RPC_METHODS = ['payLightningInvoice', 'getLightningSendRequest', 'getTransfer'] as const;
+type WalletRpcMethod = (typeof WALLET_RPC_METHODS)[number];
 
 // Defensive caps. The MPP page-side surface is fully attacker-controlled —
 // reject obviously hostile inputs at the boundary so the background never
 // has to defend against megabyte-sized strings or wrong types.
 const MAX_INVOICE_LEN = 8192;
 const MAX_SHORT_FIELD_LEN = 512;
-const MAX_OPAQUE_LEN = 4096;
-// Payment challenge `request` is a serialized payload that can include a full
-// BOLT11 invoice, so it can be much larger than short metadata fields.
-const MAX_PAYMENT_REQUEST_LEN = 4096;
 const MAX_REQUEST_ID_LEN = 256;
 
-interface MppExtChallengeDetail {
+interface MppWalletRpcRequestDetail {
   requestId: string;
-  // Payment target. Today this is either a BOLT11 Lightning invoice
-  // ("lnbc…") or a Spark address ("spark1…", "sp1…" etc.). The wire field
-  // is named `invoice` for back-compat with sites already integrating MPP;
-  // the meaning is generalised to "payment target". The background classifies
-  // by prefix (see src/lib/payment-target.ts) and routes accordingly.
-  invoice: string;
-  // Required for Spark addresses (which have no embedded amount), ignored
-  // for BOLT11 invoices (amount is in the invoice HRP). When supplied for
-  // a Lightning invoice the background does not consult it — the BOLT11
-  // amount is always authoritative.
-  amountSats?: number;
-  // Optional client-side routing hint. When true, wallets may attempt a
-  // Spark transfer first if the invoice carries Spark route data.
-  preferSpark?: boolean;
-  // Optional server-side invoice-generation hint mirrored back by the SDK.
-  // Useful for UI context (e.g. whether Spark route data was requested).
-  includeSparkInvoice?: boolean;
-  scheme?: string;
-  macaroon?: string;
-  token?: string;
-  challenge?: {
-    id: string;
-    realm: string;
-    method: string;
-    intent: string;
-    request: string;
-    expires?: string;
-    opaque?: string;
-  };
+  method: WalletRpcMethod;
+  params?: unknown;
 }
 
 interface MppRequestDetail {
@@ -64,9 +37,9 @@ interface MppRequestDetail {
   intents?: string[];
 }
 
-interface CredentialResponse {
-  approved: boolean;
-  credential?: string;
+interface WalletRpcResponse {
+  ok: boolean;
+  result?: unknown;
   error?: string;
 }
 
@@ -162,18 +135,33 @@ function takeBoolean(v: unknown): boolean | undefined {
   return typeof v === 'boolean' ? v : undefined;
 }
 
-function takePaymentChallenge(raw: unknown): MppExtChallengeDetail['challenge'] | undefined {
-  if (!raw || typeof raw !== 'object') return undefined;
-  const c = raw as Record<string, unknown>;
-  const id = takeBoundedString(c.id, MAX_SHORT_FIELD_LEN);
-  const realm = takeBoundedString(c.realm, MAX_SHORT_FIELD_LEN);
-  const method = takeBoundedString(c.method, MAX_SHORT_FIELD_LEN);
-  const intent = takeBoundedString(c.intent, MAX_SHORT_FIELD_LEN);
-  const request = takeBoundedString(c.request, MAX_PAYMENT_REQUEST_LEN);
-  if (!id || !realm || !method || !intent || !request) return undefined;
-  const expires = c.expires !== undefined ? takeBoundedString(c.expires, MAX_SHORT_FIELD_LEN) : undefined;
-  const opaque = c.opaque !== undefined ? takeBoundedString(c.opaque, MAX_OPAQUE_LEN) : undefined;
-  return { id, realm, method, intent, request, expires, opaque };
+// Sanitises the params for a single wallet-RPC method at the page boundary.
+// Returns a trusted params object, or null if anything is malformed. The
+// background re-validates (defence in depth), but rejecting obviously hostile
+// input here keeps unbounded strings out of the runtime channel entirely.
+function sanitizeWalletRpcParams(
+  method: WalletRpcMethod,
+  raw: unknown,
+): Record<string, unknown> | null {
+  const p = (raw && typeof raw === 'object') ? raw as Record<string, unknown> : {};
+  if (method === 'payLightningInvoice') {
+    const invoice = takeBoundedString(p.invoice, MAX_INVOICE_LEN);
+    if (!invoice) return null;
+    const out: Record<string, unknown> = { invoice };
+    if (typeof p.maxFeeSats === 'number'
+      && Number.isFinite(p.maxFeeSats)
+      && p.maxFeeSats >= 0
+      && p.maxFeeSats <= Number.MAX_SAFE_INTEGER) {
+      out.maxFeeSats = p.maxFeeSats;
+    }
+    const preferSpark = takeBoolean(p.preferSpark);
+    if (preferSpark !== undefined) out.preferSpark = preferSpark;
+    return out;
+  }
+  // getLightningSendRequest / getTransfer — a single bounded id string.
+  const id = takeBoundedString(p.id, MAX_SHORT_FIELD_LEN);
+  if (!id) return null;
+  return { id };
 }
 
 // Announce presence and notify background (icon badge) when the page asks.
@@ -222,72 +210,49 @@ window.addEventListener(MPP_EXTENSION_EVENT, (event: Event) => {
   dispatchAnnouncement();
 });
 
-// Handle payment requests dispatched by the page.
-window.addEventListener('mpp:challenge', (event: Event) => {
-  const detail = (event as CustomEvent<MppExtChallengeDetail>).detail;
+// Relay wallet-RPC requests from the page-side SDK to the background, and
+// dispatch the raw result back. The extension gates `payLightningInvoice`
+// behind its approval flow; `getLightningSendRequest`/`getTransfer` are
+// read-only follow-ups the SDK uses to resolve the preimage page-side.
+window.addEventListener(MPP_WALLET_RPC_EVENT, (event: Event) => {
+  const detail = (event as CustomEvent<MppWalletRpcRequestDetail>).detail;
   const requestId = takeBoundedString(detail?.requestId, MAX_REQUEST_ID_LEN);
-  const invoice = takeBoundedString(detail?.invoice, MAX_INVOICE_LEN);
-  if (!requestId || !invoice) {
-    log('[TIPT-CS] mpp:challenge rejected: missing/invalid requestId or invoice');
+  const method = detail?.method;
+  if (!requestId || !method || !WALLET_RPC_METHODS.includes(method)) {
+    log('[TIPT-CS] mpp:wallet-rpc rejected: missing/invalid requestId or method');
     return;
   }
 
-  const scheme = takeBoundedString(detail.scheme, MAX_SHORT_FIELD_LEN) ?? 'L402';
-  const macaroon = takeBoundedString(detail.macaroon, MAX_OPAQUE_LEN);
-  const token = takeBoundedString(detail.token, MAX_OPAQUE_LEN);
-  const challenge = takePaymentChallenge(detail.challenge);
-  const preferSpark = takeBoolean(detail.preferSpark);
-  const includeSparkInvoice = takeBoolean(detail.includeSparkInvoice);
-
-  // Sanitise the optional amountSats. Validation that it's required (for
-  // Spark) and matches the target kind happens in the background — keeping
-  // the content script ignorant of payment-kind semantics keeps the
-  // page-side surface as small as possible.
-  let amountSats: number | undefined;
-  if (typeof detail.amountSats === 'number'
-    && Number.isFinite(detail.amountSats)
-    && Number.isInteger(detail.amountSats)
-    && detail.amountSats > 0
-    && detail.amountSats <= Number.MAX_SAFE_INTEGER) {
-    amountSats = detail.amountSats;
+  const params = sanitizeWalletRpcParams(method, detail.params);
+  if (!params) {
+    window.dispatchEvent(new CustomEvent(MPP_WALLET_RPC_RESPONSE_EVENT, {
+      detail: { requestId, ok: false, error: 'Invalid wallet RPC parameters.' },
+    }));
+    return;
   }
 
-  log('[TIPT-CS] mpp:challenge received, requestId:', requestId);
+  log('[TIPT-CS] mpp:wallet-rpc received, method:', method, 'requestId:', requestId);
 
-  void sendRuntimeMessage<CredentialResponse>({
-    type: PAY_REQUEST_402,
-    payload: {
-      source: 'mpp',
-      url: window.location.href,
-      method: 'GET',
-      challenge: {
-        scheme,
-        invoice,
-        amountSats,
-        preferSpark,
-        includeSparkInvoice,
-        macaroon,
-        token,
-        paymentChallenge: challenge,
-      },
-    },
+  void sendRuntimeMessage<WalletRpcResponse>({
+    type: WALLET_RPC_402,
+    payload: { method, params },
   })
     .then((response) => {
-      log('[TIPT-CS] Credential response:', response);
-      window.dispatchEvent(new CustomEvent('mpp:credential', {
+      window.dispatchEvent(new CustomEvent(MPP_WALLET_RPC_RESPONSE_EVENT, {
         detail: {
           requestId,
-          approved: response.approved,
-          credential: response.credential,
-          error: response.error,
+          ok: !!response?.ok,
+          result: response?.result,
+          error: response?.error,
         },
       }));
     })
     .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : 'Payment failed.';
-      log('[TIPT-CS] Credential error:', message);
-      window.dispatchEvent(new CustomEvent('mpp:credential', {
-        detail: { requestId, approved: false, error: message },
+      const message = error instanceof Error ? error.message : 'Wallet RPC failed.';
+      log('[TIPT-CS] mpp:wallet-rpc error:', message);
+      window.dispatchEvent(new CustomEvent(MPP_WALLET_RPC_RESPONSE_EVENT, {
+        detail: { requestId, ok: false, error: message },
       }));
     });
 });
+

@@ -17,9 +17,13 @@ This repository contains three related projects for Lightning payment flows:
 ## How The Pieces Fit Together
 
 1. A web app (sandbox or another client) uses the sdk package.
-2. The sdk detects 402 responses and requests payment approval through browser events.
-3. The extension listens for those events, asks the user to approve, and returns credentials.
-4. The sdk retries the original request with the returned credential.
+2. The sdk detects `402 Payment Required` responses and builds a **wallet proxy** whose calls are forwarded to the extension over `window` events (`mpp:wallet-rpc` / `mpp:wallet-rpc-response`).
+3. The extension is a thin passthrough: it prompts the user to approve, pays the invoice with its wallet (the seed never leaves the extension), and returns the raw wallet results.
+4. The sdk (via `@buildonspark/lightning-mpp-sdk`) resolves the payment preimage across the Lightning and Spark routes, builds the credential, and transparently retries the original request.
+
+> The extension holds the wallet and enforces user approval + spending caps. All
+> invoice verification, preimage resolution, and credential building happen
+> page-side in the SDK — the extension never interprets the payment.
 
 ## Prerequisites
 
@@ -128,5 +132,6 @@ pnpm --filter @tipt/sandbox run preview
 ## Notes
 
 - sandbox depends on sdk via workspace linking (local package), so SDK changes are available without publishing.
+- sdk depends on `@buildonspark/lightning-mpp-sdk` via a local `file:` link to `../lightning-mpp-sdk/sdk` (a sibling checkout). Build that package (`npm run build` in `lightning-mpp-sdk/sdk`) before installing here so its `dist/` is available.
 - If extension behavior changes, rebuild and reload the unpacked extension in Chrome.
 - Existing package-level README files still contain deeper package details.

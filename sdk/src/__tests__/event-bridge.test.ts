@@ -1,21 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import {
   MPP_EXTENSION_EVENT,
-  MPP_CHALLENGE_EVENT,
-  MPP_CREDENTIAL_EVENT,
+  MPP_WALLET_RPC_EVENT,
+  MPP_WALLET_RPC_RESPONSE_EVENT,
   MPP_EVENT_BRIDGE_PROTOCOL_VERSION,
   DEFAULT_REQUESTED_PAYMENT_METHODS,
   DEFAULT_REQUESTED_INTENTS,
   buildMppProbeRequestDetail,
   type MppResponseDetail,
-  type MppExtChallengeDetail,
+  type MppWalletRpcRequestDetail,
+  type MppWalletRpcResponseDetail,
 } from '../event-bridge';
 
 describe('event-bridge constants', () => {
   it('exports stable event names', () => {
     expect(MPP_EXTENSION_EVENT).toBe('mpp:extension');
-    expect(MPP_CHALLENGE_EVENT).toBe('mpp:challenge');
-    expect(MPP_CREDENTIAL_EVENT).toBe('mpp:credential');
+    expect(MPP_WALLET_RPC_EVENT).toBe('mpp:wallet-rpc');
+    expect(MPP_WALLET_RPC_RESPONSE_EVENT).toBe('mpp:wallet-rpc-response');
   });
 
   it('exports protocol version', () => {
@@ -69,46 +70,46 @@ describe('wire type contracts', () => {
     expect(response.protocolVersion).toBe('1.0.0');
   });
 
-  it('MppExtChallengeDetail enforces scheme literal type', () => {
-    const challenge: MppExtChallengeDetail = {
+  it('MppWalletRpcRequestDetail carries method and params', () => {
+    const request: MppWalletRpcRequestDetail = {
       requestId: 'test-id-123',
-      invoice: 'lnbc100n1p...',
-      scheme: 'Payment',
-      challenge: {
-        id: 'chal-id',
-        realm: 'example.com',
-        method: 'lightning',
-        intent: 'charge',
-        request: 'encoded-request',
-      },
+      method: 'payLightningInvoice',
+      params: { invoice: 'lnbc100n1p...', maxFeeSats: 100, preferSpark: true },
     };
 
-    expect(challenge.scheme).toBe('Payment');
-    expect(challenge.requestId).toBe('test-id-123');
+    expect(request.method).toBe('payLightningInvoice');
+    expect(request.requestId).toBe('test-id-123');
   });
 
-  it('MppExtChallengeDetail supports optional fields', () => {
-    const challenge: MppExtChallengeDetail = {
-      requestId: 'test-id',
-      invoice: 'spark1...',
-      amountSats: 1000,
-      preferSpark: false,
-      includeSparkInvoice: false,
-      scheme: 'Payment',
-      challenge: {
-        id: 'chal-id',
-        realm: 'example.com',
-        method: 'spark-transfer',
-        intent: 'transfer',
-        request: 'req',
-        expires: '2025-01-01T00:00:00Z',
-        opaque: 'opaque-data',
-      },
+  it('MppWalletRpcRequestDetail supports read methods', () => {
+    const request: MppWalletRpcRequestDetail = {
+      requestId: 'read-id',
+      method: 'getTransfer',
+      params: { id: 'transfer-abc' },
     };
 
-    expect(challenge.amountSats).toBe(1000);
-    expect(challenge.preferSpark).toBe(false);
-    expect(challenge.includeSparkInvoice).toBe(false);
-    expect(challenge.challenge.expires).toBe('2025-01-01T00:00:00Z');
+    expect(request.method).toBe('getTransfer');
+  });
+
+  it('MppWalletRpcResponseDetail carries a raw result on success', () => {
+    const response: MppWalletRpcResponseDetail = {
+      requestId: 'test-id-123',
+      ok: true,
+      result: { id: 'send-req-1', paymentPreimage: 'deadbeef' },
+    };
+
+    expect(response.ok).toBe(true);
+    expect(response.result).toEqual({ id: 'send-req-1', paymentPreimage: 'deadbeef' });
+  });
+
+  it('MppWalletRpcResponseDetail carries an error on failure', () => {
+    const response: MppWalletRpcResponseDetail = {
+      requestId: 'test-id-123',
+      ok: false,
+      error: 'declined',
+    };
+
+    expect(response.ok).toBe(false);
+    expect(response.error).toBe('declined');
   });
 });

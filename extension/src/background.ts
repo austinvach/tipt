@@ -23,7 +23,6 @@ import {
   listAllowlist,
 } from './lib/allowlist';
 import {
-  buildAuthorizationValue,
   type ChallengePayload,
 } from './lib/auth-credentials';
 
@@ -91,17 +90,11 @@ async function getConfirmPopupTopRight(): Promise<{ left: number; top: number } 
   }
 }
 
-// Defensive caps duplicated from content.ts. The content-script boundary
-// applies these on the way in, but a future regression there (or a direct
-// internal sender invoking PAY_REQUEST_402) must not be able to bypass them.
-// Keep these in sync with src/content.ts.
+// Defensive cap duplicated from content.ts. The content-script boundary
+// applies this on the way in, but a future regression there (or a direct
+// internal sender invoking a wallet RPC) must not be able to bypass it.
+// Keep in sync with src/content.ts.
 const MAX_INVOICE_LEN = 8192;
-const MAX_SHORT_FIELD_LEN = 512;
-const MAX_OPAQUE_LEN = 4096;
-// Payment challenge `request` may carry a serialized method request including
-// full BOLT11 invoices, so it needs a larger bound than short metadata fields.
-const MAX_PAYMENT_REQUEST_LEN = 4096;
-const MAX_REQUEST_ID_LEN = 256;
 
 interface PayRequestPayload {
   source: 'fetch' | 'xhr' | 'mpp';
@@ -116,15 +109,9 @@ interface PromptResponse {
   caps?: { maxSatsPerPayment: number; maxSatsPerDay: number };
 }
 
-interface OffscreenPayResponse {
+interface OffscreenResultResponse {
   ok: boolean;
-  preimage?: string;
-  error?: string;
-}
-
-interface OffscreenSparkTransferResponse {
-  ok: boolean;
-  txId?: string;
+  result?: unknown;
   error?: string;
 }
 
@@ -199,100 +186,6 @@ function sanitise402Error(raw: string | undefined): Mpp402ErrorCode {
     || s.includes('missing payment challenge fields')
   ) return 'unavailable';
   return 'failed';
-}
-
-// ---------------------------------------------------------------------------
-// Background-side payload re-validation
-// ---------------------------------------------------------------------------
-// content.ts already caps each MPP field at the page boundary. Re-apply the
-// same caps here so a future regression in the content script (or a direct
-// internal sender) can never push unbounded strings into the JCS canonicaliser
-// or the SDK. Returns the trusted payload, or null if any field is malformed.
-function validate402Payload(payload: unknown): PayRequestPayload | null {
-  if (!payload || typeof payload !== 'object') return null;
-  const p = payload as Record<string, unknown>;
-  if (p.source !== 'fetch' && p.source !== 'xhr' && p.source !== 'mpp') return null;
-  if (typeof p.url !== 'string' || p.url.length === 0 || p.url.length > MAX_REQUEST_ID_LEN * 8) return null;
-  if (typeof p.method !== 'string' || p.method.length === 0 || p.method.length > MAX_SHORT_FIELD_LEN) return null;
-  const challenge = p.challenge;
-  if (!challenge || typeof challenge !== 'object') return null;
-  const ch = challenge as Record<string, unknown>;
-  const scheme = typeof ch.scheme === 'string' ? ch.scheme : '';
-  if (scheme.length > MAX_SHORT_FIELD_LEN) return null;
-  if (typeof ch.invoice !== 'string' || ch.invoice.length === 0 || ch.invoice.length > MAX_INVOICE_LEN) return null;
-  // Optional payer-supplied amount. Required for Spark transfers (no
-  // amount embedded in a Spark address); ignored when present alongside a
-  // BOLT11 invoice (the HRP amount is always authoritative for Lightning).
-  // Validation is strict on both shape and range — reject anything that
-  // wouldn't safely flow through the allowlist sats arithmetic.
-  let challengeAmountSats: number | undefined;
-  if (ch.amountSats !== undefined) {
-    if (typeof ch.amountSats !== 'number'
-      || !Number.isFinite(ch.amountSats)
-      || !Number.isInteger(ch.amountSats)
-      || ch.amountSats <= 0
-      || ch.amountSats > Number.MAX_SAFE_INTEGER) {
-      return null;
-    }
-    challengeAmountSats = ch.amountSats;
-  }
-  let preferSpark: boolean | undefined;
-  if (ch.preferSpark !== undefined) {
-    if (typeof ch.preferSpark !== 'boolean') return null;
-    preferSpark = ch.preferSpark;
-  }
-  let includeSparkInvoice: boolean | undefined;
-  if (ch.includeSparkInvoice !== undefined) {
-    if (typeof ch.includeSparkInvoice !== 'boolean') return null;
-    includeSparkInvoice = ch.includeSparkInvoice;
-  }
-  if (ch.macaroon !== undefined && (typeof ch.macaroon !== 'string' || ch.macaroon.length > MAX_OPAQUE_LEN)) return null;
-  if (ch.token !== undefined && (typeof ch.token !== 'string' || ch.token.length > MAX_OPAQUE_LEN)) return null;
-  if (ch.rawHeader !== undefined && (typeof ch.rawHeader !== 'string' || ch.rawHeader.length > MAX_OPAQUE_LEN)) return null;
-
-  let paymentChallenge: ChallengePayload['paymentChallenge'];
-  if (ch.paymentChallenge !== undefined) {
-    if (!ch.paymentChallenge || typeof ch.paymentChallenge !== 'object') return null;
-    const pc = ch.paymentChallenge as Record<string, unknown>;
-    const shortRequired: Array<'id' | 'realm' | 'method' | 'intent'> = ['id', 'realm', 'method', 'intent'];
-    for (const k of shortRequired) {
-      const v = pc[k];
-      if (typeof v !== 'string' || v.length === 0 || v.length > MAX_SHORT_FIELD_LEN) return null;
-    }
-    if (
-      typeof pc.request !== 'string'
-      || pc.request.length === 0
-      || pc.request.length > MAX_PAYMENT_REQUEST_LEN
-    ) return null;
-    if (pc.expires !== undefined && (typeof pc.expires !== 'string' || pc.expires.length > MAX_SHORT_FIELD_LEN)) return null;
-    if (pc.opaque !== undefined && (typeof pc.opaque !== 'string' || pc.opaque.length > MAX_OPAQUE_LEN)) return null;
-    paymentChallenge = {
-      id: pc.id as string,
-      realm: pc.realm as string,
-      method: pc.method as string,
-      intent: pc.intent as string,
-      request: pc.request as string,
-      expires: pc.expires as string | undefined,
-      opaque: pc.opaque as string | undefined,
-    };
-  }
-
-  return {
-    source: p.source,
-    url: p.url,
-    method: p.method,
-    challenge: {
-      scheme,
-      invoice: ch.invoice,
-      amountSats: challengeAmountSats,
-      preferSpark,
-      includeSparkInvoice,
-      rawHeader: ch.rawHeader as string | undefined,
-      macaroon: ch.macaroon as string | undefined,
-      token: ch.token as string | undefined,
-      paymentChallenge,
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -414,61 +307,24 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   void chrome.storage.session.remove(pendingConfirmStorageKey(id)).catch(() => { /* best-effort */ });
 });
 
-function requestPreimageFromOffscreen(
-  invoice: string,
-  walletRaw: string,
-  preferSpark?: boolean,
-): Promise<string> {
+// Sends a wallet-RPC message to the offscreen document and resolves with its
+// raw `result`. Rejects with the offscreen error string on failure.
+function sendOffscreenWalletRpc(
+  type: string,
+  payload: Record<string, unknown>,
+): Promise<unknown> {
   return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      {
-        type: MSG.OFFSCREEN_PAY_INVOICE,
-        payload: { invoice, walletRaw, preferSpark },
-      },
-      (response: OffscreenPayResponse) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-
-        if (!response?.ok || !response.preimage) {
-          reject(new Error(response?.error ?? 'Offscreen payment failed.'));
-          return;
-        }
-
-        resolve(response.preimage);
-      },
-    );
-  });
-}
-
-// Mirrors `requestPreimageFromOffscreen` but for Spark-native transfers.
-// Returns the Spark transfer id (WalletTransfer.id) — there's no Lightning
-// preimage on this path. The id is purely informational for the demo; real
-// integrators would treat it as an opaque receipt.
-function requestSparkTransferFromOffscreen(
-  receiverSparkAddress: string,
-  amountSats: number,
-  walletRaw: string,
-): Promise<string> {
-  return new Promise((resolve, reject) => {
-    chrome.runtime.sendMessage(
-      {
-        type: MSG.OFFSCREEN_SPARK_TRANSFER,
-        payload: { receiverSparkAddress, amountSats, walletRaw },
-      },
-      (response: OffscreenSparkTransferResponse) => {
-        if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
-          return;
-        }
-        if (!response?.ok || !response.txId) {
-          reject(new Error(response?.error ?? 'Offscreen Spark transfer failed.'));
-          return;
-        }
-        resolve(response.txId);
-      },
-    );
+    chrome.runtime.sendMessage({ type, payload }, (response: OffscreenResultResponse) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (!response?.ok) {
+        reject(new Error(response?.error ?? 'Offscreen wallet RPC failed.'));
+        return;
+      }
+      resolve(response.result);
+    });
   });
 }
 
@@ -564,128 +420,69 @@ function openWalletSetupAndWait(): Promise<boolean> {
   });
 }
 
-async function handle402PaymentRequest(rawPayload: unknown, sender: chrome.runtime.MessageSender) {
-  const tEnter = Date.now();
-  log('[TIPT-BG] Handling 402 payment request');
-  const payload = validate402Payload(rawPayload);
-  if (!payload) {
-    log('[TIPT-BG] 402 payload failed re-validation; dropping');
-    return { approved: false, error: 'No invoice found in 402 challenge.' };
-  }
-  const invoice = nonEmptyString(payload.challenge.invoice);
-  if (!invoice) {
-    log('[TIPT-BG] No invoice found in challenge');
-    return { approved: false, error: 'No invoice found in 402 challenge.' };
-  }
+type WalletRpcResult =
+  | { ok: true; result: unknown }
+  | { ok: false; error: string };
 
-  // Classify Lightning vs Spark up-front so all downstream logic (amount
-  // resolution, prompt UI, payment routing, credential shape) shares
-  // a single branch decision. Unknown prefixes fail closed — we never
-  // try to "guess" which SDK call to use.
-  const paymentKind = classifyPaymentTarget(invoice);
-  if (paymentKind === 'unknown') {
-    log('[TIPT-BG] Payment target not recognised as Lightning or Spark');
-    return { approved: false, error: 'Payment target is not a recognised Lightning invoice or Spark address.' };
-  }
+// Maximum length for a wallet request id (Spark transfer / Lightning send
+// request id) accepted from the page on read-only follow-up RPCs.
+const MPP_ID_MAX_LEN = 512;
 
-  // SECURITY: derive the host from `sender.url` (or `sender.tab?.url`),
-  // which the browser sets to the URL of the frame that dispatched the
-  // CustomEvent — NEVER from `payload.url`, which is page-supplied and
-  // therefore spoofable. A malicious page could otherwise claim
-  // `url: 'https://victim-you-allowlisted.com/'` and trigger auto-approve.
-  const authoritativeUrl = sender.url ?? sender.tab?.url;
-  const host = authoritativeUrl ? getHostFromUrl(authoritativeUrl) : null;
-  if (!host) {
-    log('[TIPT-BG] Failed to extract host from sender URL');
-    return { approved: false, error: 'Failed to resolve request host for 402 payment.' };
-  }
-
-  log('[TIPT-BG] Processing 402 payment for host:', host, 'kind:', paymentKind);
-  // Fire-and-forget prewarm of the offscreen + SparkWallet SDK while the
-  // user reads the confirm popup (or while auto-approve runs). Idempotent;
-  // safe to call on the auto-approve path too — the offscreen short-circuits
-  // when `cachedWallet` already exists, so the cost is one IPC round-trip.
-  prewarmWallet();
-
-  // Amount resolution differs by kind:
-  //   * Lightning: BOLT11 amount is authoritative (any payer-supplied
-  //     amountSats is ignored — the invoice signs the amount).
-  //   * Spark:     no embedded amount, so the payer MUST supply one. We
-  //     reject the request otherwise rather than silently prompting with
-  //     "Amount unspecified" — for Spark a missing amount means we have
-  //     no way to enforce caps or to call wallet.transfer.
-  let amountSats: number | null;
-  if (paymentKind === 'lightning') {
-    amountSats = decodeBolt11AmountSats(invoice);
-  } else {
-    const supplied = payload.challenge.amountSats;
-    if (typeof supplied !== 'number' || supplied <= 0) {
-      log('[TIPT-BG] Spark transfer missing required amountSats');
-      return { approved: false, error: 'Spark transfers require a positive amountSats in the payment request.' };
-    }
-    amountSats = supplied;
-  }
-
-  // Wallet-existence gate. If the user hasn't set up a wallet yet, open the
-  // onboarding UI and wait for them to create or restore one before going any
-  // further. This deliberately precedes tryAutoApprove: a host the user
-  // previously allowlisted must not silently "auto-approve" into a payment we
-  // cannot fulfil — we'd only discover the missing wallet at pay time and
-  // bounce back an opaque failure. Gating here also lets the brand-new wallet
-  // continue straight into the normal confirm/auto-approve flow.
+// Runs the full approval flow for a Lightning payment: ensure a wallet exists,
+// then auto-approve (allowlist) or prompt the user (with caps). On success
+// returns the encrypted wallet blob so the caller can settle the payment.
+async function approveLightningPayment(
+  invoice: string,
+  amountSats: number | null,
+  host: string,
+  sender: chrome.runtime.MessageSender,
+  preferSpark: boolean | undefined,
+): Promise<{ ok: true; walletRaw: string } | { ok: false; error: string }> {
+  // Wallet-existence gate. Precedes tryAutoApprove: a host the user
+  // previously allowlisted must not silently auto-approve into a payment we
+  // cannot fulfil — we'd only discover the missing wallet at pay time.
   const walletReady = await ensureWalletConfigured();
   if (!walletReady) {
-    log('[TIPT-BG] Wallet setup not completed; aborting 402 payment');
-    return { approved: false, error: 'Wallet setup was not completed.' };
+    return { ok: false, error: 'Wallet setup was not completed.' };
   }
-  // The wallet may have just been created — kick off prewarm now that there's
-  // something to initialise. The earlier prewarm call no-ops when no wallet
-  // exists, and prewarmWallet is idempotent, so this is safe in both paths.
   prewarmWallet();
 
   const auto = await tryAutoApprove(host, amountSats);
-  const tAutoDecided = Date.now();
-  log('[TIPT-BG] Auto-approve decision:', auto, 'amount:', amountSats, `(t+${tAutoDecided - tEnter} ms)`);
-
   let approved = auto.approved;
   let remember = false;
   let caps: { maxSatsPerPayment: number; maxSatsPerDay: number } | undefined;
-  let tPromptResolved = tAutoDecided;
 
   if (!approved) {
     if (sender.tab?.id === undefined) {
-      log('[TIPT-BG] No tab ID available for prompt');
-      return { approved: false, error: 'Cannot prompt for 402 payment approval in this context.' };
+      return { ok: false, error: 'Cannot prompt for 402 payment approval in this context.' };
     }
-
-    // Reject piling up multiple confirm popups for the same host so a
-    // hostile page cannot spam window.dispatchEvent and create a
-    // focus-stealing DoS. The existing prompt must resolve (approve,
-    // decline, or 5-minute alarm expiry) before this host can request
-    // another approval.
+    // Reject piling up multiple confirm popups for the same host so a hostile
+    // page cannot spam a focus-stealing DoS.
     if (hostsWithPendingConfirm.has(host)) {
-      log('[TIPT-BG] Rejecting duplicate confirm for host:', host);
-      return { approved: false, error: 'A previous payment approval is still pending for this site.' };
+      return { ok: false, error: 'A previous payment approval is still pending for this site.' };
     }
-
-    const prompt = await promptForPaymentApproval(payload, host, amountSats, paymentKind);
+    const payload: PayRequestPayload = {
+      source: 'mpp',
+      url: sender.url ?? '',
+      method: 'GET',
+      challenge: {
+        scheme: 'Payment',
+        invoice,
+        amountSats: amountSats ?? undefined,
+        preferSpark,
+      },
+    };
+    const prompt = await promptForPaymentApproval(payload, host, amountSats, 'lightning');
     approved = !!prompt.approved;
     remember = !!prompt.remember;
     caps = prompt.caps;
-    tPromptResolved = Date.now();
-    log(
-      '[TIPT-BG] User prompt result - approved:', approved, 'remember:', remember,
-      `(user reaction t+${tPromptResolved - tAutoDecided} ms)`,
-    );
   }
 
   if (!approved) {
-    log('[TIPT-BG] Payment not approved, returning error');
-    return { approved: false, error: 'Payment was not approved.' };
+    return { ok: false, error: 'Payment was not approved.' };
   }
 
   if (remember && caps && amountSats !== null && amountSats > 0) {
-    log('[TIPT-BG] Remembering host with caps:', host, caps);
     try {
       await rememberHost(host, {
         maxSatsPerPayment: caps.maxSatsPerPayment,
@@ -697,68 +494,91 @@ async function handle402PaymentRequest(rawPayload: unknown, sender: chrome.runti
     }
   }
 
-  try {
-    // Background can read chrome.storage; the offscreen cannot. Pass the
-    // encrypted wallet blob along so the offscreen can re-initialise its
-    // SDK instance if Chrome reclaimed the offscreen document. The PIN
-    // never crosses this boundary — the offscreen decrypts using the
-    // non-extractable CryptoKey cached in shared IndexedDB.
-    const walletRaw = await getSynced(WALLET_KEY);
-    if (!walletRaw) {
-      return { approved: false, error: 'Wallet data not found.' };
-    }
-
-    const tBeforeOffscreen = Date.now();
-    await ensureOffscreen();
-    const tAfterOffscreen = Date.now();
-
-    if (paymentKind === 'lightning') {
-      log('[TIPT-BG] Paying Lightning invoice:', invoice.slice(0, 20));
-      const preimage = await requestPreimageFromOffscreen(
-        invoice,
-        walletRaw,
-        payload.challenge.preferSpark,
-      );
-      const tAfterPay = Date.now();
-      log(
-        '[TIPT-BG] Lightning payment successful, preimage len:', preimage.length,
-        `| ensureOffscreen=${tAfterOffscreen - tBeforeOffscreen} ms`,
-        `payInvoice=${tAfterPay - tAfterOffscreen} ms`,
-        `total=${tAfterPay - tEnter} ms`,
-      );
-
-      const credential = buildAuthorizationValue(payload.challenge, preimage);
-      if (!credential) {
-        return { approved: false, error: 'Missing Payment challenge fields for MPP credential retry.' };
-      }
-
-      return { approved: true, credential };
-    }
-
-    // Spark transfer branch. No Lightning preimage exists, so the
-    // L402/Payment Authorization builder doesn't apply — we hand the
-    // transfer id back in a scheme-tagged form for symmetry. The demo
-    // and any future consumer treats this as an opaque receipt.
-    log('[TIPT-BG] Sending Spark transfer to:', invoice.slice(0, 24), `amount=${amountSats}`);
-    if (amountSats === null) {
-      // Defensive — should be unreachable because we validated above.
-      return { approved: false, error: 'Spark transfers require a positive amountSats in the payment request.' };
-    }
-    const txId = await requestSparkTransferFromOffscreen(invoice, amountSats, walletRaw);
-    const tAfterPay = Date.now();
-    log(
-      '[TIPT-BG] Spark transfer successful, id:', txId,
-      `| ensureOffscreen=${tAfterOffscreen - tBeforeOffscreen} ms`,
-      `transfer=${tAfterPay - tAfterOffscreen} ms`,
-      `total=${tAfterPay - tEnter} ms`,
-    );
-
-    return { approved: true, credential: `SparkTransfer ${txId}` };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Failed to pay invoice.';
-    log('[TIPT-BG] Payment failed:', message);
-    return { approved: false, error: message };
+  // Background can read chrome.storage; the offscreen cannot. Pass the
+  // encrypted wallet blob along so the offscreen can re-initialise its SDK
+  // instance if Chrome reclaimed the offscreen document. The PIN never
+  // crosses this boundary — the offscreen decrypts using the non-extractable
+  // CryptoKey cached in shared IndexedDB.
+  const walletRaw = await getSynced(WALLET_KEY);
+  if (!walletRaw) {
+    return { ok: false, error: 'Wallet data not found.' };
   }
+  return { ok: true, walletRaw };
+}
+
+// Wallet-RPC pay handler. Gates `payLightningInvoice` behind the approval
+// flow, then forwards it to the offscreen document and returns the RAW
+// (projected) SparkWallet result. Preimage resolution and credential building
+// happen page-side in @buildonspark/lightning-mpp-sdk.
+async function handleWalletPayRpc(
+  params: Record<string, unknown>,
+  sender: chrome.runtime.MessageSender,
+): Promise<WalletRpcResult> {
+  const invoice = nonEmptyString(params.invoice);
+  if (!invoice || invoice.length > MAX_INVOICE_LEN) {
+    return { ok: false, error: 'No invoice found in payment request.' };
+  }
+  // The charge flow only pays BOLT11 invoices; fail closed on anything else.
+  if (classifyPaymentTarget(invoice) !== 'lightning') {
+    return { ok: false, error: 'Payment target is not a recognised Lightning invoice.' };
+  }
+
+  // SECURITY: derive the host from `sender.url` (browser-set), NEVER from any
+  // page-supplied field, so a malicious page cannot spoof an allowlisted host.
+  const authoritativeUrl = sender.url ?? sender.tab?.url;
+  const host = authoritativeUrl ? getHostFromUrl(authoritativeUrl) : null;
+  if (!host) {
+    return { ok: false, error: 'Failed to resolve request host for 402 payment.' };
+  }
+
+  const preferSpark = typeof params.preferSpark === 'boolean' ? params.preferSpark : undefined;
+  const maxFeeSats =
+    typeof params.maxFeeSats === 'number'
+      && Number.isFinite(params.maxFeeSats)
+      && params.maxFeeSats >= 0
+      ? Math.floor(params.maxFeeSats)
+      : undefined;
+
+  prewarmWallet();
+  const amountSats = decodeBolt11AmountSats(invoice);
+
+  const approval = await approveLightningPayment(invoice, amountSats, host, sender, preferSpark);
+  if (!approval.ok) return approval;
+
+  await ensureOffscreen();
+  const result = await sendOffscreenWalletRpc(MSG.OFFSCREEN_PAY_LIGHTNING_RAW, {
+    invoice,
+    walletRaw: approval.walletRaw,
+    preferSpark,
+    maxFeeSats,
+  });
+  return { ok: true, result };
+}
+
+// Wallet-RPC read handler for the SDK's preimage-resolution follow-ups
+// (getLightningSendRequest / getTransfer). These take an id that can only be
+// obtained from an approved payLightningInvoice result and only ever expose
+// the user's own wallet data, so they run without a fresh approval prompt.
+async function handleWalletReadRpc(
+  msgType: string,
+  params: Record<string, unknown>,
+  sender: chrome.runtime.MessageSender,
+): Promise<WalletRpcResult> {
+  const authoritativeUrl = sender.url ?? sender.tab?.url;
+  if (!authoritativeUrl) {
+    return { ok: false, error: 'Failed to resolve request host.' };
+  }
+  const id = nonEmptyString(params.id);
+  if (!id || id.length > MPP_ID_MAX_LEN) {
+    return { ok: false, error: 'Invalid wallet request id.' };
+  }
+  const walletRaw = await getSynced(WALLET_KEY);
+  if (!walletRaw) {
+    return { ok: false, error: 'Wallet data not found.' };
+  }
+  await ensureOffscreen();
+  const result = await sendOffscreenWalletRpc(msgType, { id, walletRaw });
+  return { ok: true, result };
 }
 
 // ---------------------------------------------------------------------------
@@ -948,24 +768,44 @@ const handlers: Record<string, MessageHandler> = {
     return true;
   },
 
-  [MSG.PAY_REQUEST_402](message, sender, sendResponse) {
-    // 402 payment requests must originate from a content script in a real tab.
+  [MSG.WALLET_RPC_402](message, sender, sendResponse) {
+    // Wallet RPCs must originate from a content script in a real tab.
     if (!sender.tab || !sender.url) {
-      log('[TIPT-BG] 402 request missing sender.tab/sender.url; dropping');
+      log('[TIPT-BG] wallet RPC missing sender.tab/sender.url; dropping');
       return;
     }
+    const payload = message.payload ?? {};
+    const method = typeof payload.method === 'string' ? payload.method : '';
+    const params = payload.params && typeof payload.params === 'object'
+      ? payload.params as Record<string, unknown>
+      : {};
 
-    log('[TIPT-BG] Payment request message received from content script');
-    void handle402PaymentRequest(message.payload, sender).then((response) => {
-      log('[TIPT-BG] Sending payment response:', response);
+    log('[TIPT-BG] Wallet RPC received:', method);
+    void (async () => {
+      let response: WalletRpcResult;
+      try {
+        if (method === 'payLightningInvoice') {
+          response = await handleWalletPayRpc(params, sender);
+        } else if (method === 'getLightningSendRequest') {
+          response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_SEND_REQUEST, params, sender);
+        } else if (method === 'getTransfer') {
+          response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_TRANSFER, params, sender);
+        } else {
+          response = { ok: false, error: 'Unsupported wallet RPC method.' };
+        }
+      } catch (error) {
+        response = {
+          ok: false,
+          error: error instanceof Error ? error.message : 'Wallet RPC failed.',
+        };
+      }
       // Sanitise any error string before it crosses back to the page so the
       // site only learns one of four coarse codes — never wallet internals.
-      // Approved responses pass through unchanged.
-      const sanitised = response.approved
+      const sanitised = response.ok
         ? response
-        : { approved: false as const, error: sanitise402Error(response.error) };
+        : { ok: false as const, error: sanitise402Error(response.error) };
       sendResponse(sanitised);
-    });
+    })();
     return true;
   },
 };

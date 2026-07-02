@@ -6,6 +6,9 @@ import {
   createWalletInvoice,
   getWalletFeeEstimate,
   payInvoice,
+  payLightningInvoiceRaw,
+  getLightningSendRequestRaw,
+  getTransferRaw,
   payToSparkAddress,
   hasCachedWallet,
   disposeWallet,
@@ -18,15 +21,29 @@ import { isInternalSender } from './lib/runtime';
 import { MSG, type Envelope } from './lib/messages';
 
 const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Envelope>> = {
-  async [MSG.OFFSCREEN_PAY_INVOICE](p) {
+  async [MSG.OFFSCREEN_PAY_LIGHTNING_RAW](p) {
     const invoice = p.invoice as string | undefined;
     const walletRaw = p.walletRaw as string | undefined;
     const preferSpark = typeof p.preferSpark === 'boolean' ? p.preferSpark : undefined;
+    const maxFeeSats = typeof p.maxFeeSats === 'number' ? p.maxFeeSats : undefined;
     if (!invoice) return { ok: false, error: 'Missing invoice for offscreen payment.' };
     if (!walletRaw) return { ok: false, error: 'Missing wallet ciphertext for offscreen payment.' };
-    const r = await payInvoice(invoice, { walletRaw, pollPreimage: true, preferSpark });
-    if (!r.preimage) return { ok: false, error: 'Payment succeeded but preimage was not available.' };
-    return { ok: true, preimage: r.preimage };
+    const result = await payLightningInvoiceRaw(invoice, { walletRaw, preferSpark, maxFeeSats });
+    return { ok: true, result };
+  },
+  async [MSG.OFFSCREEN_GET_SEND_REQUEST](p) {
+    const id = p.id as string | undefined;
+    const walletRaw = p.walletRaw as string | undefined;
+    if (!id) return { ok: false, error: 'Missing id for getLightningSendRequest.' };
+    const result = await getLightningSendRequestRaw(id, walletRaw);
+    return { ok: true, result };
+  },
+  async [MSG.OFFSCREEN_GET_TRANSFER](p) {
+    const id = p.id as string | undefined;
+    const walletRaw = p.walletRaw as string | undefined;
+    if (!id) return { ok: false, error: 'Missing id for getTransfer.' };
+    const result = await getTransferRaw(id, walletRaw);
+    return { ok: true, result };
   },
   async [MSG.OFFSCREEN_SPARK_TRANSFER](p) {
     const receiverSparkAddress = p.receiverSparkAddress as string | undefined;

@@ -1,6 +1,11 @@
 export const MPP_EXTENSION_EVENT = 'mpp:extension';
-export const MPP_CHALLENGE_EVENT = 'mpp:challenge';
-export const MPP_CREDENTIAL_EVENT = 'mpp:credential';
+// Wallet-RPC bridge: the page-side SDK forwards individual wallet method
+// calls (payLightningInvoice / getLightningSendRequest / getTransfer) to the
+// extension, which executes them against the SparkWallet it owns and returns
+// the RAW result. All interpretation (preimage resolution, credential
+// serialization) happens page-side inside @buildonspark/lightning-mpp-sdk.
+export const MPP_WALLET_RPC_EVENT = 'mpp:wallet-rpc';
+export const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
 
 export const MPP_EVENT_BRIDGE_PROTOCOL_VERSION = '1.0.0';
 
@@ -21,28 +26,28 @@ export interface MppResponseDetail {
   walletConfigured?: boolean;
 }
 
-export interface MppExtChallengeDetail {
+/**
+ * Wallet methods the extension exposes over the bridge. These mirror the
+ * subset of the SparkWallet surface that `@buildonspark/lightning-mpp-sdk`'s
+ * `charge` method needs to pay an invoice and resolve its preimage.
+ */
+export type MppWalletRpcMethod =
+  | 'payLightningInvoice'
+  | 'getLightningSendRequest'
+  | 'getTransfer';
+
+export interface MppWalletRpcRequestDetail {
   requestId: string;
-  invoice: string;
-  amountSats?: number;
-  preferSpark?: boolean;
-  includeSparkInvoice?: boolean;
-  scheme: 'Payment';
-  challenge: {
-    id: string;
-    realm: string;
-    method: string;
-    intent: string;
-    request: string;
-    expires?: string;
-    opaque?: string;
-  };
+  method: MppWalletRpcMethod;
+  /** Method arguments. Shape depends on `method` (validated extension-side). */
+  params: unknown;
 }
 
-export interface MppExtCredentialDetail {
+export interface MppWalletRpcResponseDetail {
   requestId?: string;
-  approved?: boolean;
-  credential?: string;
+  ok?: boolean;
+  /** Raw wallet result on success — passed through verbatim from the SDK. */
+  result?: unknown;
   error?: string;
 }
 

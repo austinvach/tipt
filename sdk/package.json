@@ -48,9 +48,9 @@
   },
   "homepage": "https://github.com/austinvach/lightning-mpp-extension-sdk#readme",
   "dependencies": {
-    "@buildonspark/lightning-mpp-sdk": "^0.1.4",
+    "@buildonspark/lightning-mpp-sdk": "file:../../lightning-mpp-sdk/sdk",
     "@buildonspark/spark-sdk": "^0.7.15",
-    "mppx": "^0.3.15",
+    "mppx": "^0.8.4",
     "viem": "^2.46.2"
   },
   "devDependencies": {

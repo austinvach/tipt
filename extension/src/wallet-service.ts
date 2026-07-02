@@ -11,11 +11,77 @@ interface WalletPayload {
   ct: string;
 }
 
-const TERMINAL_FAILURE_STATUSES = new Set([
-  'LIGHTNING_PAYMENT_FAILED',
-  'PREIMAGE_PROVIDING_FAILED',
-  'USER_TRANSFER_VALIDATION_FAILED',
-]);
+const PREIMAGE_KEYS = ['paymentPreimage', 'preimage', 'payment_preimage'] as const;
+
+// Raw wallet-result projections forwarded to the page-side SDK over the
+// bridge. We deliberately return only the string fields that
+// @buildonspark/lightning-mpp-sdk's `resolvePreimage` reads — not the whole
+// SparkWallet object — so the payload is JSON/structured-clone safe (no
+// BigInt or class instances) and leaks no extra wallet state to the page.
+// The extension does NOT interpret these: preimage resolution and credential
+// building happen page-side.
+export interface WalletUserRequestProjection {
+  id?: string;
+  paymentPreimage?: string;
+  status?: string;
+}
+export interface WalletPayProjection {
+  id: string;
+  paymentPreimage?: string;
+  status?: string;
+  // Present iff the SDK result carried a `userRequest` — the SDK uses this
+  // presence to detect the Spark route, so we preserve it faithfully.
+  userRequest?: WalletUserRequestProjection;
+}
+export interface WalletSendRequestProjection {
+  paymentPreimage?: string;
+  status?: string;
+}
+export interface WalletTransferProjection {
+  status?: string;
+  userRequest?: WalletUserRequestProjection;
+}
+
+// Extracts a preimage already present on a payment/transfer/request object
+// without polling. Covers the Lightning route (top-level `paymentPreimage`)
+// and the Spark route (nested `userRequest.paymentPreimage`).
+function extractPreimage(source: Record<string, unknown>): string | null {
+  const direct = getStringField(source, PREIMAGE_KEYS);
+  if (direct) return direct;
+  const userRequest = source.userRequest;
+  if (userRequest && typeof userRequest === 'object') {
+    return getStringField(userRequest as Record<string, unknown>, PREIMAGE_KEYS);
+  }
+  return null;
+}
+
+function projectUserRequest(value: unknown): WalletUserRequestProjection | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const u = value as Record<string, unknown>;
+  const out: WalletUserRequestProjection = {};
+  const id = getStringField(u, ['id']);
+  if (id) out.id = id;
+  const preimage = getStringField(u, PREIMAGE_KEYS);
+  if (preimage) out.paymentPreimage = preimage;
+  if (typeof u.status === 'string') out.status = u.status;
+  return out;
+}
+
+function projectPayResult(result: unknown): WalletPayProjection {
+  const r = (result ?? {}) as Record<string, unknown>;
+  const out: WalletPayProjection = {
+    id: getStringField(r, ['id', 'transferSparkId']) ?? '',
+  };
+  const preimage = getStringField(r, PREIMAGE_KEYS);
+  if (preimage) out.paymentPreimage = preimage;
+  if (typeof r.status === 'string') out.status = r.status;
+  // Preserve `userRequest` presence (even if empty) — the SDK keys its
+  // Spark-vs-Lightning poll mode on whether this field exists.
+  if (r.userRequest !== undefined && r.userRequest !== null && typeof r.userRequest === 'object') {
+    out.userRequest = projectUserRequest(r.userRequest) ?? {};
+  }
+  return out;
+}
 
 let cachedWallet: SparkWallet | null = null;
 let walletInitPromise: Promise<SparkWallet> | null = null;
@@ -77,48 +143,57 @@ export async function ensureWalletFromBlob(walletRaw: string): Promise<SparkWall
   }
 }
 
-async function pollForPreimage(
-  wallet: SparkWallet,
-  requestId: string,
-  maxWaitMs = 60_000,
-): Promise<string> {
-  const startedAt = Date.now();
-  const deadline = startedAt + maxWaitMs;
-  // Exponential backoff capped at 1 s (was 5 s — the 5 s ceiling could leave
-  // the user waiting up to ~5 s of pure idle time between the moment the
-  // preimage actually landed and the moment we next polled). The first poll
-  // still fires at 250 ms because most real Lightning routes settle in
-  // under ~500 ms; smaller intervals would hammer the SDK without payoff.
-  let intervalMs = 250;
-  const maxIntervalMs = 1_000;
-  let polls = 0;
-
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, intervalMs));
-    intervalMs = Math.min(intervalMs * 2, maxIntervalMs);
-    polls += 1;
-
-    const req = await (wallet as unknown as {
-      getLightningSendRequest: (id: string) => Promise<Record<string, unknown> | null>;
-    }).getLightningSendRequest(requestId);
-
-    if (!req) {
-      continue;
-    }
-
-    const preimage = getStringField(req, ['paymentPreimage', 'preimage', 'payment_preimage']);
-    if (preimage) {
-      log(`[TIPT-OFFSCREEN] preimage acquired after ${polls} polls in ${Date.now() - startedAt} ms`);
-      return preimage;
-    }
-
-    const status = typeof req.status === 'string' ? req.status : '';
-    if (TERMINAL_FAILURE_STATUSES.has(status)) {
-      throw new Error(`Lightning payment failed with status: ${status}`);
-    }
+// Raw wallet-read passthroughs for the MPP charge bridge. The page-side SDK
+// drives the polling loop (resolvePreimage) and calls these to follow a
+// settling payment: `getLightningSendRequest` for the Lightning route, and
+// `getTransfer` (whose nested `userRequest.id` the SDK follows back into
+// `getLightningSendRequest`) for the Spark route. We return only the
+// projected string fields the SDK reads.
+async function ensureWalletReady(walletRaw?: string): Promise<SparkWallet> {
+  if (cachedWallet) return cachedWallet;
+  if (!walletRaw) {
+    throw new Error('Wallet not initialized and no encrypted blob provided to re-initialize.');
   }
+  return ensureWalletFromBlob(walletRaw);
+}
 
-  throw new Error('Timed out waiting for payment preimage.');
+export async function getLightningSendRequestRaw(
+  id: string,
+  walletRaw?: string,
+): Promise<WalletSendRequestProjection | null> {
+  const wallet = await ensureWalletReady(walletRaw);
+  const w = wallet as unknown as {
+    getLightningSendRequest: (id: string) => Promise<Record<string, unknown> | null>;
+  };
+  const req = await w.getLightningSendRequest(id);
+  if (!req || typeof req !== 'object') return null;
+  const out: WalletSendRequestProjection = {};
+  const preimage = getStringField(req, PREIMAGE_KEYS);
+  if (preimage) out.paymentPreimage = preimage;
+  if (typeof req.status === 'string') out.status = req.status;
+  return out;
+}
+
+export async function getTransferRaw(
+  id: string,
+  walletRaw?: string,
+): Promise<WalletTransferProjection | null> {
+  const wallet = await ensureWalletReady(walletRaw);
+  const w = wallet as unknown as {
+    getTransfer?: (id: string) => Promise<Record<string, unknown> | null | undefined>;
+  };
+  if (typeof w.getTransfer !== 'function') return null;
+  const transfer = await w.getTransfer(id);
+  if (!transfer || typeof transfer !== 'object') return null;
+  const out: WalletTransferProjection = {};
+  if (typeof (transfer as { status?: unknown }).status === 'string') {
+    out.status = (transfer as { status: string }).status;
+  }
+  const userRequest = (transfer as { userRequest?: unknown }).userRequest;
+  if (userRequest !== undefined && userRequest !== null && typeof userRequest === 'object') {
+    out.userRequest = projectUserRequest(userRequest) ?? {};
+  }
+  return out;
 }
 
 async function getWalletFeeEstimateRaw(invoice: string): Promise<number | null> {
@@ -141,9 +216,6 @@ export interface PayOptions {
   // Pre-computed maximum fee from the caller. When omitted, we ask the SDK
   // for a fee estimate and apply the standard headroom multiplier.
   maxFeeSats?: number;
-  // If true, the result is guaranteed to contain `preimage` — we poll the
-  // Lightning send request until the SDK exposes one. Used by the 402 path.
-  pollPreimage?: boolean;
   // Optional route preference for BOLT11 invoices. Defaults to true to keep
   // existing behavior unless the caller explicitly disables it.
   preferSpark?: boolean;
@@ -154,19 +226,18 @@ export interface PayResult {
   preimage?: string;
 }
 
-// Single unified payment entry point used by both the popup (TIPT_PAY_INVOICE)
-// and the background 402 flow (TIPT_OFFSCREEN_PAY_INVOICE). All recovery,
-// fee estimation, and preimage handling is centralised here.
-export async function payInvoice(invoice: string, options: PayOptions = {}): Promise<PayResult> {
-  const tStart = Date.now();
+// Shared core: ensure the wallet, resolve a max fee, and call
+// `payLightningInvoice`. Returns the RAW SDK result untouched.
+async function payLightningInvoiceCore(
+  invoice: string,
+  options: PayOptions,
+): Promise<Record<string, unknown>> {
   if (!cachedWallet) {
     if (!options.walletRaw) {
       throw new Error('Wallet not initialized and no encrypted blob provided to re-initialize.');
     }
     await ensureWalletFromBlob(options.walletRaw);
   }
-  const tWalletReady = Date.now();
-
   const wallet = cachedWallet;
   if (!wallet) throw new Error('Wallet not initialized.');
 
@@ -175,37 +246,29 @@ export async function payInvoice(invoice: string, options: PayOptions = {}): Pro
     const estimated = await getWalletFeeEstimateRaw(invoice);
     maxFeeSats = estimated !== null ? Math.max(25, Math.ceil(estimated * 2)) : 50;
   }
-  const tFeeReady = Date.now();
 
   const preferSpark = options.preferSpark ?? true;
   const result = await wallet.payLightningInvoice({ invoice, maxFeeSats, preferSpark });
-  const tPayReturned = Date.now();
-  const r = result as unknown as Record<string, unknown>;
-  const txId = typeof r.id === 'string' ? r.id
-    : typeof r.transferSparkId === 'string' ? r.transferSparkId
-    : undefined;
-  let preimage = typeof r.paymentPreimage === 'string' ? r.paymentPreimage
-    : typeof r.preimage === 'string' ? r.preimage
-    : typeof r.payment_preimage === 'string' ? r.payment_preimage
-    : undefined;
+  return result as unknown as Record<string, unknown>;
+}
 
-  if (options.pollPreimage && !preimage) {
-    if (!txId) {
-      throw new Error('Payment initiated but no request ID returned to poll for preimage.');
-    }
-    if (!cachedWallet) throw new Error('Wallet disposed before preimage was available.');
-    preimage = await pollForPreimage(cachedWallet, txId);
-  }
-  const tDone = Date.now();
+// Thin raw pay for the MPP charge bridge: pays and returns the projected
+// wallet result (JSON/clone-safe subset). Does NOT poll for a preimage — the
+// page-side SDK's `resolvePreimage` drives that via the read passthroughs.
+export async function payLightningInvoiceRaw(
+  invoice: string,
+  options: PayOptions = {},
+): Promise<WalletPayProjection> {
+  const result = await payLightningInvoiceCore(invoice, options);
+  return projectPayResult(result);
+}
 
-  log(
-    `[TIPT-OFFSCREEN] payInvoice timing (ms): walletReady=${tWalletReady - tStart}`,
-    `feeEstimate=${tFeeReady - tWalletReady}`,
-    `payLightningInvoice=${tPayReturned - tFeeReady}`,
-    `preimage=${tDone - tPayReturned}`,
-    `total=${tDone - tStart}`,
-  );
-
+// Popup send path (TIPT_PAY_INVOICE). Returns the transfer id and any
+// synchronously-available preimage; the popup only consumes the id.
+export async function payInvoice(invoice: string, options: PayOptions = {}): Promise<PayResult> {
+  const result = await payLightningInvoiceCore(invoice, options);
+  const txId = getStringField(result, ['id', 'transferSparkId']) ?? undefined;
+  const preimage = extractPreimage(result) ?? undefined;
   return { txId, preimage };
 }
 
