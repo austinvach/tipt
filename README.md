@@ -5,18 +5,20 @@ This repository contains three related projects for Lightning payment flows:
 - extension: Browser extension wallet and payment approval UX
 - sdk: Browser SDK that handles 402 Payment Required retries via extension events
 - sandbox: Demo web app for testing paid-content/payment flows against the SDK and extension
+- api: Next.js API that serves 402-protected movie/news/image routes
 
 ## Repository Layout
 
 - extension: Chrome extension (Vite + React + TypeScript)
 - sdk: Publishable library package (tsup + TypeScript + Vitest)
 - sandbox: Demo client app (Vite + React + TypeScript)
+- api: API server (Next.js + TypeScript)
 - package.json: Root monorepo scripts
 - pnpm-workspace.yaml: Workspace package configuration
 
 ## How The Pieces Fit Together
 
-1. A web app (sandbox or another client) uses the sdk package.
+1. A web app (sandbox or another client) calls api endpoints and uses the sdk package.
 2. The sdk detects `402 Payment Required` responses and builds a **wallet proxy** whose calls are forwarded to the extension over `window` events (`mpp:wallet-rpc` / `mpp:wallet-rpc-response`).
 3. The extension is a thin passthrough: it prompts the user to approve, pays the invoice with its wallet (the seed never leaves the extension), and returns the raw wallet results.
 4. The sdk (via `@buildonspark/lightning-mpp-sdk`) resolves the payment preimage across the Lightning and Spark routes, builds the credential, and transparently retries the original request.
@@ -100,6 +102,14 @@ pnpm run dev:sandbox
 ```
 
 The sandbox runs with Vite and exposes Lightning payment demo routes.
+
+### 4) API server (api)
+
+```bash
+pnpm run dev:api
+```
+
+Set required env vars first (for example, `MPP_SECRET_KEY`) based on `api/.env.example`.
 
 ## Package-Specific Commands
 

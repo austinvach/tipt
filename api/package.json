@@ -1,0 +1,31 @@
+{
+  "name": "@tipt/api",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@buildonspark/lightning-mpp-sdk": "^0.1.4",
+    "@buildonspark/spark-sdk": "^0.8.6",
+    "@google/genai": "^1.44.0",
+    "mppx": "^0.8.4",
+    "next": "^15.5.4",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "viem": "^2.52.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.14",
+    "@types/node": "^25.3.3",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.14",
+    "typescript": "~5.9.3"
+  }
+}

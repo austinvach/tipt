@@ -1,11 +1,14 @@
 packages:
   - extension
+  - api
   - sandbox
   - sdk
 
 allowBuilds:
+  "@google/genai": true
   esbuild: true
   protobufjs: true
+  sharp: true
   lightning-mpp-extension-sdk@https://codeload.github.com/gettipt/sdk/tar.gz/da5e716bef4061e752a68a2a508f13b3269b2752: true
 
 minimumReleaseAgeExclude:
