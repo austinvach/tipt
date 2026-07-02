@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import "./globals.css";
+import "../index.css";
 
 export const metadata: Metadata = {
-  title: "API — Lightning-gated API",
-  description:
-    "A demo API whose premium endpoints are gated behind Lightning payments via HTTP 402 (Machine Payable Protocol).",
+  title: "Sandbox — Lightning 402 demos",
+  description: "TIPT sandbox with separate Lightning 402 payment demos.",
 };
 
 export default function RootLayout({
