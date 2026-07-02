@@ -113,6 +113,25 @@ function callWalletRpc(
       const response = (event as CustomEvent<MppWalletRpcResponseDetail>).detail;
       if (!response || response.requestId !== requestId) return;
       cleanup();
+      // [TIPT-DIAG] temporary
+      console.log('[tipt-sdk] wallet-rpc ←', method, { ok: response.ok, result: response.result, error: response.error });
+      if (
+        method === 'payLightningInvoice'
+        || method === 'getLightningSendRequest'
+        || method === 'getTransferFromSsp'
+        || method === 'getTransfer'
+      ) {
+        console.log(`[tipt-sdk] ${method} response`, response);
+        console.log(`[tipt-sdk] ${method} result`, response.result);
+        if (response.result && typeof response.result === 'object' && '_debug' in response.result) {
+          console.log(`[tipt-sdk] ${method} _debug`, (response.result as { _debug?: unknown })._debug);
+        }
+        try {
+          console.log(`[tipt-sdk] ${method} JSON`, JSON.stringify(response.result, null, 2));
+        } catch (error) {
+          console.log(`[tipt-sdk] ${method} JSON stringify failed`, error);
+        }
+      }
       if (response.ok === false) {
         reject(new Error(response.error ?? `MPP extension wallet RPC "${method}" failed.`));
         return;
@@ -127,6 +146,8 @@ function callWalletRpc(
 
     window.addEventListener(MPP_WALLET_RPC_RESPONSE_EVENT, onResponse as EventListener);
     const detail: MppWalletRpcRequestDetail = { requestId, method, params };
+    // [TIPT-DIAG] temporary
+    console.log('[tipt-sdk] wallet-rpc →', method, params);
     window.dispatchEvent(new CustomEvent(MPP_WALLET_RPC_EVENT, { detail }));
   });
 }
@@ -158,6 +179,11 @@ function createBridgeWallet(options: BridgeWalletOptions): WalletLike {
     async getLightningSendRequest(id) {
       return callWalletRpc('getLightningSendRequest', { id }, options.readTimeoutMs) as ReturnType<
         WalletLike['getLightningSendRequest']
+      >;
+    },
+    async getTransferFromSsp(id) {
+      return callWalletRpc('getTransferFromSsp', { id }, options.readTimeoutMs) as ReturnType<
+        NonNullable<WalletLike['getTransferFromSsp']>
       >;
     },
     async getTransfer(id) {
@@ -235,6 +261,10 @@ export function createLightningMppExtensionClient(
   const chargeMethod = lightningCharge({
     wallet,
     preferSpark: options.preferSpark ?? true,
+    // [TIPT-DIAG] temporary — logs challenge/paying/paid so we can see whether
+    // the flow re-enters (server rejecting the credential = version skew) or
+    // stalls before 'paid' (preimage resolution).
+    onProgress: (e) => console.log('[tipt-sdk] charge progress', e),
     ...(options.maxFeeSats !== undefined ? { maxFeeSats: options.maxFeeSats } : {}),
     ...(options.network ? { network: options.network } : {}),
   });

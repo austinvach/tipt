@@ -15,7 +15,7 @@ const MPP_REQUEST_TRIGGERED_EVENT = 'TIPT_MPP_REQUEST_TRIGGERED';
 const WALLET_RPC_402 = 'TIPT_402_WALLET_RPC';
 const MPP_WALLET_RPC_EVENT = 'mpp:wallet-rpc';
 const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
-const WALLET_RPC_METHODS = ['payLightningInvoice', 'getLightningSendRequest', 'getTransfer'] as const;
+const WALLET_RPC_METHODS = ['payLightningInvoice', 'getLightningSendRequest', 'getTransferFromSsp', 'getTransfer'] as const;
 type WalletRpcMethod = (typeof WALLET_RPC_METHODS)[number];
 
 // Defensive caps. The MPP page-side surface is fully attacker-controlled —
@@ -158,7 +158,7 @@ function sanitizeWalletRpcParams(
     if (preferSpark !== undefined) out.preferSpark = preferSpark;
     return out;
   }
-  // getLightningSendRequest / getTransfer — a single bounded id string.
+  // getLightningSendRequest / getTransferFromSsp / getTransfer — a single bounded id string.
   const id = takeBoundedString(p.id, MAX_SHORT_FIELD_LEN);
   if (!id) return null;
   return { id };
@@ -212,8 +212,8 @@ window.addEventListener(MPP_EXTENSION_EVENT, (event: Event) => {
 
 // Relay wallet-RPC requests from the page-side SDK to the background, and
 // dispatch the raw result back. The extension gates `payLightningInvoice`
-// behind its approval flow; `getLightningSendRequest`/`getTransfer` are
-// read-only follow-ups the SDK uses to resolve the preimage page-side.
+// behind its approval flow; getLightningSendRequest/getTransferFromSsp/getTransfer
+// are read-only follow-ups the SDK uses to resolve the preimage page-side.
 window.addEventListener(MPP_WALLET_RPC_EVENT, (event: Event) => {
   const detail = (event as CustomEvent<MppWalletRpcRequestDetail>).detail;
   const requestId = takeBoundedString(detail?.requestId, MAX_REQUEST_ID_LEN);

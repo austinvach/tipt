@@ -556,7 +556,7 @@ async function handleWalletPayRpc(
 }
 
 // Wallet-RPC read handler for the SDK's preimage-resolution follow-ups
-// (getLightningSendRequest / getTransfer). These take an id that can only be
+// (getLightningSendRequest / getTransferFromSsp / getTransfer). These take an id that can only be
 // obtained from an approved payLightningInvoice result and only ever expose
 // the user's own wallet data, so they run without a fresh approval prompt.
 async function handleWalletReadRpc(
@@ -788,6 +788,8 @@ const handlers: Record<string, MessageHandler> = {
           response = await handleWalletPayRpc(params, sender);
         } else if (method === 'getLightningSendRequest') {
           response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_SEND_REQUEST, params, sender);
+        } else if (method === 'getTransferFromSsp') {
+          response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_TRANSFER_FROM_SSP, params, sender);
         } else if (method === 'getTransfer') {
           response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_TRANSFER, params, sender);
         } else {

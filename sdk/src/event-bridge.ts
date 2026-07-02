@@ -34,6 +34,7 @@ export interface MppResponseDetail {
 export type MppWalletRpcMethod =
   | 'payLightningInvoice'
   | 'getLightningSendRequest'
+  | 'getTransferFromSsp'
   | 'getTransfer';
 
 export interface MppWalletRpcRequestDetail {

@@ -8,6 +8,7 @@ import {
   payInvoice,
   payLightningInvoiceRaw,
   getLightningSendRequestRaw,
+  getTransferFromSspRaw,
   getTransferRaw,
   payToSparkAddress,
   hasCachedWallet,
@@ -36,6 +37,13 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
     const walletRaw = p.walletRaw as string | undefined;
     if (!id) return { ok: false, error: 'Missing id for getLightningSendRequest.' };
     const result = await getLightningSendRequestRaw(id, walletRaw);
+    return { ok: true, result };
+  },
+  async [MSG.OFFSCREEN_GET_TRANSFER_FROM_SSP](p) {
+    const id = p.id as string | undefined;
+    const walletRaw = p.walletRaw as string | undefined;
+    if (!id) return { ok: false, error: 'Missing id for getTransferFromSsp.' };
+    const result = await getTransferFromSspRaw(id, walletRaw);
     return { ok: true, result };
   },
   async [MSG.OFFSCREEN_GET_TRANSFER](p) {

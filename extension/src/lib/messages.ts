@@ -31,6 +31,7 @@ export const MSG = {
   // page-side SDK owns preimage resolution and credential serialization.
   OFFSCREEN_PAY_LIGHTNING_RAW: 'TIPT_OFFSCREEN_PAY_LIGHTNING_RAW',
   OFFSCREEN_GET_SEND_REQUEST: 'TIPT_OFFSCREEN_GET_SEND_REQUEST',
+  OFFSCREEN_GET_TRANSFER_FROM_SSP: 'TIPT_OFFSCREEN_GET_TRANSFER_FROM_SSP',
   OFFSCREEN_GET_TRANSFER: 'TIPT_OFFSCREEN_GET_TRANSFER',
   // Spark-native transfer to a Spark address (background → offscreen), used
   // by the extension's own send/tip UI. The SDK call is different

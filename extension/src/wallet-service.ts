@@ -28,18 +28,49 @@ export interface WalletUserRequestProjection {
 export interface WalletPayProjection {
   id: string;
   paymentPreimage?: string;
+  sparkInvoice?: string;
   status?: string;
   // Present iff the SDK result carried a `userRequest` — the SDK uses this
   // presence to detect the Spark route, so we preserve it faithfully.
   userRequest?: WalletUserRequestProjection;
+  // [TIPT-DIAG] temporary raw-shape dump for debugging Spark preimage resolution.
+  _debug?: unknown;
 }
 export interface WalletSendRequestProjection {
   paymentPreimage?: string;
   status?: string;
+  _debug?: unknown;
 }
 export interface WalletTransferProjection {
   status?: string;
+  sparkInvoice?: string;
   userRequest?: WalletUserRequestProjection;
+  _debug?: unknown;
+}
+
+// [TIPT-DIAG] temporary — JSON/clone-safe structural dump of a raw SparkWallet
+// object so we can inspect field names/ids across the bridge in the page
+// console. Remove once Spark preimage resolution is confirmed.
+function debugDump(value: unknown): unknown {
+  const seen = new WeakSet<object>();
+  const norm = (v: unknown, depth: number): unknown => {
+    if (typeof v === 'bigint') return `bigint:${v.toString()}`;
+    if (v === null || typeof v !== 'object') return v;
+    if (seen.has(v as object)) return '[circular]';
+    seen.add(v as object);
+    if (Array.isArray(v)) return depth <= 0 ? `[array:${v.length}]` : v.slice(0, 4).map((x) => norm(x, depth - 1));
+    const obj = v as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const k of Object.keys(obj)) {
+      const val = obj[k];
+      if (typeof val === 'function') continue;
+      out[k] = depth <= 0
+        ? (val && typeof val === 'object' ? `[${Array.isArray(val) ? 'array' : 'object'}]` : norm(val, 0))
+        : norm(val, depth - 1);
+    }
+    return out;
+  };
+  return norm(value, 3);
 }
 
 // Extracts a preimage already present on a payment/transfer/request object
@@ -74,12 +105,18 @@ function projectPayResult(result: unknown): WalletPayProjection {
   };
   const preimage = getStringField(r, PREIMAGE_KEYS);
   if (preimage) out.paymentPreimage = preimage;
+  const sparkInvoice = getStringField(r, ['sparkInvoice']);
+  if (sparkInvoice) out.sparkInvoice = sparkInvoice;
   if (typeof r.status === 'string') out.status = r.status;
-  // Preserve `userRequest` presence (even if empty) — the SDK keys its
-  // Spark-vs-Lightning poll mode on whether this field exists.
-  if (r.userRequest !== undefined && r.userRequest !== null && typeof r.userRequest === 'object') {
-    out.userRequest = projectUserRequest(r.userRequest) ?? {};
-  }
+
+  // Include the nested `userRequest` only if the SDK result actually carries
+  // one (it lets the SDK short-circuit when the preimage is already present).
+  // The SDK no longer keys its poll route on this field — it infers the route
+  // per-poll from `getTransfer`/`getLightningSendRequest` responses — so we do
+  // NOT need to synthesize a hint for Spark transfers here.
+  const projectedUserRequest = projectUserRequest(r.userRequest);
+  if (projectedUserRequest) out.userRequest = projectedUserRequest;
+  out._debug = debugDump(r); // [TIPT-DIAG] temporary
   return out;
 }
 
@@ -165,12 +202,51 @@ export async function getLightningSendRequestRaw(
   const w = wallet as unknown as {
     getLightningSendRequest: (id: string) => Promise<Record<string, unknown> | null>;
   };
-  const req = await w.getLightningSendRequest(id);
+  // Defensive: the SDK may probe an id that isn't a Lightning send request
+  // (e.g. a Spark transfer id). Treat a not-found/throwing lookup as null
+  // rather than surfacing an error that would abort preimage resolution.
+  let req: Record<string, unknown> | null;
+  try {
+    req = await w.getLightningSendRequest(id);
+  } catch {
+    return null;
+  }
   if (!req || typeof req !== 'object') return null;
   const out: WalletSendRequestProjection = {};
   const preimage = getStringField(req, PREIMAGE_KEYS);
   if (preimage) out.paymentPreimage = preimage;
   if (typeof req.status === 'string') out.status = req.status;
+  out._debug = debugDump(req); // [TIPT-DIAG] temporary
+  return out;
+}
+
+export async function getTransferFromSspRaw(
+  id: string,
+  walletRaw?: string,
+): Promise<WalletTransferProjection | null> {
+  const wallet = await ensureWalletReady(walletRaw);
+  const w = wallet as unknown as {
+    getTransferFromSsp?: (id: string) => Promise<Record<string, unknown> | null | undefined>;
+  };
+  if (typeof w.getTransferFromSsp !== 'function') return null;
+  let transfer: Record<string, unknown> | null | undefined;
+  try {
+    transfer = await w.getTransferFromSsp(id);
+  } catch {
+    return null;
+  }
+  if (!transfer || typeof transfer !== 'object') return null;
+  const out: WalletTransferProjection = {};
+  if (typeof (transfer as { status?: unknown }).status === 'string') {
+    out.status = (transfer as { status: string }).status;
+  }
+  const sparkInvoice = getStringField(transfer, ['sparkInvoice']);
+  if (sparkInvoice) out.sparkInvoice = sparkInvoice;
+  const userRequest = (transfer as { userRequest?: unknown }).userRequest;
+  if (userRequest !== undefined && userRequest !== null && typeof userRequest === 'object') {
+    out.userRequest = projectUserRequest(userRequest) ?? {};
+  }
+  out._debug = debugDump(transfer); // [TIPT-DIAG] temporary
   return out;
 }
 
@@ -183,16 +259,28 @@ export async function getTransferRaw(
     getTransfer?: (id: string) => Promise<Record<string, unknown> | null | undefined>;
   };
   if (typeof w.getTransfer !== 'function') return null;
-  const transfer = await w.getTransfer(id);
+  // Defensive: the SDK probes `getTransfer(id)` every poll to detect the Spark
+  // route, so it will pass Lightning send-request ids too. A not-found/throwing
+  // lookup means "not a transfer" — return null so the SDK falls back to the
+  // Lightning path instead of aborting.
+  let transfer: Record<string, unknown> | null | undefined;
+  try {
+    transfer = await w.getTransfer(id);
+  } catch {
+    return null;
+  }
   if (!transfer || typeof transfer !== 'object') return null;
   const out: WalletTransferProjection = {};
   if (typeof (transfer as { status?: unknown }).status === 'string') {
     out.status = (transfer as { status: string }).status;
   }
+  const sparkInvoice = getStringField(transfer, ['sparkInvoice']);
+  if (sparkInvoice) out.sparkInvoice = sparkInvoice;
   const userRequest = (transfer as { userRequest?: unknown }).userRequest;
   if (userRequest !== undefined && userRequest !== null && typeof userRequest === 'object') {
     out.userRequest = projectUserRequest(userRequest) ?? {};
   }
+  out._debug = debugDump(transfer); // [TIPT-DIAG] temporary
   return out;
 }
 
