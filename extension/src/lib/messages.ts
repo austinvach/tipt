@@ -31,15 +31,6 @@ export const MSG = {
   // page-side SDK owns preimage resolution and credential serialization.
   OFFSCREEN_PAY_LIGHTNING_RAW: 'TIPT_OFFSCREEN_PAY_LIGHTNING_RAW',
   OFFSCREEN_GET_SEND_REQUEST: 'TIPT_OFFSCREEN_GET_SEND_REQUEST',
-  OFFSCREEN_GET_TRANSFER_FROM_SSP: 'TIPT_OFFSCREEN_GET_TRANSFER_FROM_SSP',
-  OFFSCREEN_GET_TRANSFER: 'TIPT_OFFSCREEN_GET_TRANSFER',
-  // Spark-native transfer to a Spark address (background → offscreen), used
-  // by the extension's own send/tip UI. The SDK call is different
-  // (wallet.transfer vs wallet.payLightningInvoice) and there is no
-  // Lightning preimage to return — the response carries the Spark
-  // transfer id instead.
-  OFFSCREEN_SPARK_TRANSFER: 'TIPT_OFFSCREEN_SPARK_TRANSFER',
-  GET_SPARK_ADDRESS: 'TIPT_GET_SPARK_ADDRESS',
   // Fire-and-forget warm-up: spin up the offscreen SparkWallet SDK ahead of
   // any actual 402 confirm, so the user doesn't pay the cold-start cost on
   // the critical path between clicking Approve and the page receiving its

@@ -8,14 +8,10 @@ import {
   payInvoice,
   payLightningInvoiceRaw,
   getLightningSendRequestRaw,
-  getTransferFromSspRaw,
-  getTransferRaw,
-  payToSparkAddress,
   hasCachedWallet,
   disposeWallet,
   registerWalletEventListener,
   ensureWalletFromBlob,
-  getSparkAddress,
 } from './wallet-service';
 import { clearUnlockKey } from './lib/key-store';
 import { isInternalSender } from './lib/runtime';
@@ -25,11 +21,10 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
   async [MSG.OFFSCREEN_PAY_LIGHTNING_RAW](p) {
     const invoice = p.invoice as string | undefined;
     const walletRaw = p.walletRaw as string | undefined;
-    const preferSpark = typeof p.preferSpark === 'boolean' ? p.preferSpark : undefined;
     const maxFeeSats = typeof p.maxFeeSats === 'number' ? p.maxFeeSats : undefined;
     if (!invoice) return { ok: false, error: 'Missing invoice for offscreen payment.' };
     if (!walletRaw) return { ok: false, error: 'Missing wallet ciphertext for offscreen payment.' };
-    const result = await payLightningInvoiceRaw(invoice, { walletRaw, preferSpark, maxFeeSats });
+    const result = await payLightningInvoiceRaw(invoice, { walletRaw, maxFeeSats });
     return { ok: true, result };
   },
   async [MSG.OFFSCREEN_GET_SEND_REQUEST](p) {
@@ -38,29 +33,6 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
     if (!id) return { ok: false, error: 'Missing id for getLightningSendRequest.' };
     const result = await getLightningSendRequestRaw(id, walletRaw);
     return { ok: true, result };
-  },
-  async [MSG.OFFSCREEN_GET_TRANSFER_FROM_SSP](p) {
-    const id = p.id as string | undefined;
-    const walletRaw = p.walletRaw as string | undefined;
-    if (!id) return { ok: false, error: 'Missing id for getTransferFromSsp.' };
-    const result = await getTransferFromSspRaw(id, walletRaw);
-    return { ok: true, result };
-  },
-  async [MSG.OFFSCREEN_GET_TRANSFER](p) {
-    const id = p.id as string | undefined;
-    const walletRaw = p.walletRaw as string | undefined;
-    if (!id) return { ok: false, error: 'Missing id for getTransfer.' };
-    const result = await getTransferRaw(id, walletRaw);
-    return { ok: true, result };
-  },
-  async [MSG.OFFSCREEN_SPARK_TRANSFER](p) {
-    const receiverSparkAddress = p.receiverSparkAddress as string | undefined;
-    const amountSats = typeof p.amountSats === 'number' ? p.amountSats : NaN;
-    const walletRaw = p.walletRaw as string | undefined;
-    if (!receiverSparkAddress) return { ok: false, error: 'Missing receiver Spark address for transfer.' };
-    if (!walletRaw) return { ok: false, error: 'Missing wallet ciphertext for Spark transfer.' };
-    const r = await payToSparkAddress(receiverSparkAddress, amountSats, { walletRaw });
-    return { ok: true, txId: r.txId };
   },
   async [MSG.PREWARM_WALLET](p) {
     const walletRaw = p.walletRaw as string | undefined;
@@ -101,16 +73,11 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
     if (!invoice) return { ok: false, error: 'Missing invoice.' };
     const maxFeeSats = typeof p.maxFeeSats === 'number' ? p.maxFeeSats : undefined;
     const walletRaw = p.walletRaw as string | undefined;
-    const preferSpark = typeof p.preferSpark === 'boolean' ? p.preferSpark : undefined;
-    const r = await payInvoice(invoice, { maxFeeSats, walletRaw, preferSpark });
+    const r = await payInvoice(invoice, { maxFeeSats, walletRaw });
     return { ok: true, txId: r.txId };
   },
   async [MSG.HAS_WALLET]() {
     return { ok: true, hasWallet: hasCachedWallet() };
-  },
-  async [MSG.GET_SPARK_ADDRESS]() {
-    const address = await getSparkAddress();
-    return { ok: true, address };
   },
   async [MSG.DISPOSE_WALLET]() {
     await disposeWallet();

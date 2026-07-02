@@ -22,42 +22,13 @@ function formatSats(value: number | null): string {
   return `${value.toLocaleString('en-US')} sats`;
 }
 
-// Truncate a long bech32m address ("spark1qq…xyz") to a glanceable form for
-// the confirm popup. We keep enough of the suffix that the user can compare
-// it against a recipient address shown elsewhere (e.g. an invoice they
-// generated themselves) without rendering the full ~70-char string and
-// blowing out the popup width.
-function truncateMiddle(value: string, head = 14, tail = 8): string {
-  if (value.length <= head + tail + 1) return value;
-  return `${value.slice(0, head)}…${value.slice(-tail)}`;
-}
-
-function getMethodPresentation(details: PersistedConfirmDetails): {
+function getMethodPresentation(): {
   label: string;
   hint: string;
   dotClassName: string;
 } {
-  const paymentKind = details.paymentKind ?? 'lightning';
-  if (paymentKind === 'spark') {
-    return {
-      label: paymentKindLabel(paymentKind),
-      hint: 'off-Lightning transfer',
-      dotClassName: 'bg-purple-500',
-    };
-  }
-
-  if (details.preferSpark) {
-    return {
-      label: 'Lightning (Spark preferred)',
-      hint: details.includeSparkInvoice
-        ? 'tries Spark route first, then Lightning fallback'
-        : 'tries Spark route first when invoice supports it',
-      dotClassName: 'bg-sky-500',
-    };
-  }
-
   return {
-    label: paymentKindLabel(paymentKind),
+    label: paymentKindLabel('lightning'),
     hint: 'BOLT11 invoice',
     dotClassName: 'bg-amber-500',
   };
@@ -172,7 +143,7 @@ export default function ConfirmApp() {
 
   const amountKnown = typeof details?.amountSats === 'number' && details.amountSats > 0;
   const canRemember = amountKnown;
-  const methodPresentation = details ? getMethodPresentation(details) : null;
+  const methodPresentation = details ? getMethodPresentation() : null;
 
   const respond = async (approved: boolean) => {
     if (busy) return;
@@ -261,14 +232,6 @@ export default function ConfirmApp() {
               <div className="text-neutral-500 dark:text-neutral-400">Amount</div>
               <div className="font-mono">{formatSats(details.amountSats)}</div>
             </div>
-            {(details.paymentKind ?? 'lightning') === 'spark' && (
-              <div>
-                <div className="text-neutral-500 dark:text-neutral-400">Recipient</div>
-                <div className="font-mono" title={details.invoice}>
-                  {truncateMiddle(details.invoice)}
-                </div>
-              </div>
-            )}
           </div>
 
           <label className={`flex items-center gap-2 text-xs ${canRemember ? 'text-neutral-700 dark:text-neutral-300' : 'text-neutral-400 dark:text-neutral-600'}`}>

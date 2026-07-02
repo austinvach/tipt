@@ -74,7 +74,7 @@ describe('wire type contracts', () => {
     const request: MppWalletRpcRequestDetail = {
       requestId: 'test-id-123',
       method: 'payLightningInvoice',
-      params: { invoice: 'lnbc100n1p...', maxFeeSats: 100, preferSpark: true },
+      params: { invoice: 'lnbc100n1p...', maxFeeSats: 100 },
     };
 
     expect(request.method).toBe('payLightningInvoice');
@@ -84,11 +84,11 @@ describe('wire type contracts', () => {
   it('MppWalletRpcRequestDetail supports read methods', () => {
     const request: MppWalletRpcRequestDetail = {
       requestId: 'read-id',
-      method: 'getTransfer',
-      params: { id: 'transfer-abc' },
+      method: 'getLightningSendRequest',
+      params: { id: 'send-req-abc' },
     };
 
-    expect(request.method).toBe('getTransfer');
+    expect(request.method).toBe('getLightningSendRequest');
   });
 
   it('MppWalletRpcResponseDetail carries a raw result on success', () => {

@@ -130,11 +130,8 @@ importers:
   sdk:
     dependencies:
       '@buildonspark/lightning-mpp-sdk':
-        specifier: file:../../lightning-mpp-sdk/sdk
-        version: file:../lightning-mpp-sdk/sdk(@buildonspark/spark-sdk@0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))
-      '@buildonspark/spark-sdk':
-        specifier: ^0.7.15
-        version: 0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)
+        specifier: ^0.1.4
+        version: 0.1.4(@buildonspark/spark-sdk@0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.20.1))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))
       mppx:
         specifier: ^0.8.4
         version: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
@@ -246,11 +243,11 @@ packages:
   '@bufbuild/protobuf@2.12.1':
     resolution: {integrity: sha512-BvAMfS6LrgZiryOAZ4pBYucu4wG/Ei/9o9DZ9akbREnMLbPJiom2i8b9C8IsKErQoiKqVhrerzt3kOT/RrzLHg==}
 
-  '@buildonspark/lightning-mpp-sdk@file:../lightning-mpp-sdk/sdk':
-    resolution: {directory: ../lightning-mpp-sdk/sdk, type: directory}
+  '@buildonspark/lightning-mpp-sdk@0.1.4':
+    resolution: {integrity: sha512-8WnI3QF2obCsVSOTUJWTQWfTThmDO+1ugQQCZ7VueMBXU8M6gu4gNGgmSI0+IzmPy7EHWALJOcvKkZlap7YglA==}
     peerDependencies:
       '@buildonspark/spark-sdk': ^0.7.1
-      mppx: ^0.8.4
+      mppx: ^0.3.15
 
   '@buildonspark/spark-sdk@0.7.17':
     resolution: {integrity: sha512-0lLDSmJcZJmIsetKybjragJg2pZ0x9ECiIYNldc6NAKIWq/oQ9o12aQ8qLIHeZ3HDawJCY9G3AH+uD+QP8E24Q==}
@@ -3052,12 +3049,50 @@ snapshots:
 
   '@bufbuild/protobuf@2.12.1': {}
 
-  '@buildonspark/lightning-mpp-sdk@file:../lightning-mpp-sdk/sdk(@buildonspark/spark-sdk@0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))':
+  '@buildonspark/lightning-mpp-sdk@0.1.4(@buildonspark/spark-sdk@0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.20.1))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))':
     dependencies:
-      '@buildonspark/spark-sdk': 0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)
+      '@buildonspark/spark-sdk': 0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.20.1)
       '@noble/hashes': 2.2.0
       light-bolt11-decoder: 3.2.0
       mppx: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
+
+  '@buildonspark/spark-sdk@0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.20.1)':
+    dependencies:
+      '@bufbuild/protobuf': 2.12.1
+      '@lightsparkdev/core': 1.5.2
+      '@noble/curves': 1.9.7
+      '@noble/hashes': 1.8.0
+      '@scure/base': 1.2.6
+      '@scure/bip32': 1.7.0
+      '@scure/bip39': 1.6.0
+      '@scure/btc-signer': 1.8.1
+      abort-controller-x: 0.4.3
+      abortcontroller-polyfill: 1.7.8
+      async-mutex: 0.5.0
+      bare-crypto: 1.15.3(bare-buffer@3.6.1)(bare-events@2.9.1)
+      bare-fetch: 3.0.1(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))
+      buffer: 6.0.3
+      eventemitter3: 5.0.4
+      js-base64: 3.8.0
+      light-bolt11-decoder: 3.2.0
+      nice-grpc: 2.1.16
+      nice-grpc-client-middleware-retry: 3.1.15
+      nice-grpc-common: 2.0.3
+      nice-grpc-web: 3.3.10(ws@8.20.1)
+      ts-proto: 2.8.3
+      ua-parser-js: 2.0.10
+      uuidv7: 1.2.1
+    optionalDependencies:
+      react: 19.2.7
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bare-events
+      - bare-pipe
+      - bufferutil
+      - react-native-b4a
+      - utf-8-validate
+      - ws
 
   '@buildonspark/spark-sdk@0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)':
     dependencies:
@@ -4623,6 +4658,10 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  isomorphic-ws@5.0.0(ws@8.20.1):
+    dependencies:
+      ws: 8.20.1
+
   isomorphic-ws@5.0.0(ws@8.21.0):
     dependencies:
       ws: 8.21.0
@@ -4810,6 +4849,15 @@ snapshots:
   nice-grpc-common@2.0.3:
     dependencies:
       ts-error: 1.0.6
+
+  nice-grpc-web@3.3.10(ws@8.20.1):
+    dependencies:
+      abort-controller-x: 0.5.0
+      isomorphic-ws: 5.0.0(ws@8.20.1)
+      js-base64: 3.8.0
+      nice-grpc-common: 2.0.3
+    transitivePeerDependencies:
+      - ws
 
   nice-grpc-web@3.3.10(ws@8.21.0):
     dependencies:

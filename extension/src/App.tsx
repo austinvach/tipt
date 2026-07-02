@@ -173,7 +173,6 @@ export default function App() {
   const isSendMaxRef = useRef(false);
   const setIsSendMax = useCallback((v: boolean) => { isSendMaxRef.current = v; }, []);
   const [pendingBolt11, setPendingBolt11] = useState<string | null>(null);
-  const [pendingSparkAddress, setPendingSparkAddress] = useState<string | null>(null);
   const [feeEstimateSats, setFeeEstimateSats] = useState<number | null>(null);
   const [pendingWalletAction, setPendingWalletAction] = useState<PendingWalletAction>(null);
   const [invoiceCopied, setInvoiceCopied] = useState(false);
@@ -612,7 +611,6 @@ export default function App() {
     setSendError(null);
     setSendTxId(null);
     setPendingBolt11(null);
-    setPendingSparkAddress(null);
     setFeeEstimateSats(null);
     setIsSendMax(false);
   };
@@ -705,7 +703,6 @@ export default function App() {
 
     // Reset pending target each time we build a fresh confirmation payload.
     setPendingBolt11(null);
-    setPendingSparkAddress(null);
 
     if (paymentKind === 'lightning') {
       const invoiceAmountSats = decodeBolt11AmountSats(target);
@@ -747,34 +744,6 @@ export default function App() {
       return;
     }
 
-    if (paymentKind === 'spark') {
-      let effectiveAmountSats: number;
-      if (isSendMaxRef.current) {
-        effectiveAmountSats = balanceSats;
-      } else {
-        const parsed = parseInt(sendAmountSats, 10);
-        if (isNaN(parsed) || parsed <= 0) {
-          setSendError('Enter a valid amount for this Spark transfer.');
-          return;
-        }
-        effectiveAmountSats = parsed;
-      }
-
-      if (effectiveAmountSats > balanceSats) {
-        setSendError('Amount exceeds your balance.');
-        return;
-      }
-
-      setSendError(null);
-      setLnurlPayInfo(null);
-      setResolvedInput(target);
-      setSendAmountSats(String(effectiveAmountSats));
-      setFeeEstimateSats(0);
-      setPendingSparkAddress(target);
-      setSendStep('confirm');
-      return;
-    }
-
     // Fallback path: resolve LNURL / Lightning Address then fetch invoice.
     let payInfo = lnurlPayInfo;
     if (!payInfo) {
@@ -795,7 +764,7 @@ export default function App() {
         setResolvedInput(target);
         payInfo = info;
       } catch {
-        setSendError('Unsupported recipient. Use LNURL/Lightning Address, a BOLT11 invoice, or a Spark address.');
+        setSendError('Unsupported recipient. Use LNURL/Lightning Address or a BOLT11 invoice.');
         return;
       } finally {
         setResolving(false);
@@ -876,7 +845,6 @@ export default function App() {
       }
       setSendAmountSats(String(effectiveAmountSats));
       setPendingBolt11(bolt11);
-      setPendingSparkAddress(null);
       setFeeEstimateSats(fee);
       setSendStep('confirm');
     } catch (err) {
@@ -887,7 +855,7 @@ export default function App() {
   };
 
   const handleConfirmPayment = async () => {
-    if (!pendingBolt11 && !pendingSparkAddress) return;
+    if (!pendingBolt11) return;
     setSendStep('sending');
     try {
       // S7: only the encrypted wallet blob is shipped to the offscreen —
@@ -895,32 +863,19 @@ export default function App() {
       // the AES key from shared IndexedDB if it needs to re-initialise.
       const walletRaw = await getSynced(WALLET_KEY);
 
-      let result: { ok: boolean; txId?: string; error?: string };
-      if (pendingSparkAddress) {
-        const amountSats = parseInt(sendAmountSats, 10);
-        result = await sendWalletMessage<{ ok: boolean; txId?: string; error?: string }>({
-          type: MSG.OFFSCREEN_SPARK_TRANSFER,
-          payload: {
-            receiverSparkAddress: pendingSparkAddress,
-            amountSats,
-            walletRaw: walletRaw ?? undefined,
-          },
-        });
-      } else {
-        // Double the SDK's fee estimate to give the router headroom — the
-        // estimate is a best-guess and the actual route can cost more.
-        const maxFeeSats = feeEstimateSats !== null
-          ? Math.max(Math.ceil(feeEstimateSats * 2), getMaxFeeSats(parseInt(sendAmountSats, 10)))
-          : getMaxFeeSats(parseInt(sendAmountSats, 10));
-        result = await sendWalletMessage<{ ok: boolean; txId?: string; error?: string }>({
-          type: MSG.PAY_INVOICE,
-          payload: {
-            invoice: pendingBolt11,
-            maxFeeSats,
-            walletRaw: walletRaw ?? undefined,
-          },
-        });
-      }
+      // Double the SDK's fee estimate to give the router headroom — the
+      // estimate is a best-guess and the actual route can cost more.
+      const maxFeeSats = feeEstimateSats !== null
+        ? Math.max(Math.ceil(feeEstimateSats * 2), getMaxFeeSats(parseInt(sendAmountSats, 10)))
+        : getMaxFeeSats(parseInt(sendAmountSats, 10));
+      const result = await sendWalletMessage<{ ok: boolean; txId?: string; error?: string }>({
+        type: MSG.PAY_INVOICE,
+        payload: {
+          invoice: pendingBolt11,
+          maxFeeSats,
+          walletRaw: walletRaw ?? undefined,
+        },
+      });
 
       if (!result.ok) throw new Error(result.error ?? 'Payment failed.');
       setSendTxId(result.txId ?? null);

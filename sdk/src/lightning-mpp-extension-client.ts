@@ -93,8 +93,8 @@ export function probeLightningMppExtension(
 /**
  * Dispatches a single wallet-RPC request over the page event bridge and
  * resolves with the extension's raw result. The extension gates the
- * `payLightningInvoice` call behind its own approval flow; read methods
- * (`getLightningSendRequest`, `getTransfer`) are read-only follow-ups.
+ * `payLightningInvoice` call behind its own approval flow; read methods are
+ * read-only follow-ups.
  */
 function callWalletRpc(
   method: MppWalletRpcMethod,
@@ -113,25 +113,6 @@ function callWalletRpc(
       const response = (event as CustomEvent<MppWalletRpcResponseDetail>).detail;
       if (!response || response.requestId !== requestId) return;
       cleanup();
-      // [TIPT-DIAG] temporary
-      console.log('[tipt-sdk] wallet-rpc ←', method, { ok: response.ok, result: response.result, error: response.error });
-      if (
-        method === 'payLightningInvoice'
-        || method === 'getLightningSendRequest'
-        || method === 'getTransferFromSsp'
-        || method === 'getTransfer'
-      ) {
-        console.log(`[tipt-sdk] ${method} response`, response);
-        console.log(`[tipt-sdk] ${method} result`, response.result);
-        if (response.result && typeof response.result === 'object' && '_debug' in response.result) {
-          console.log(`[tipt-sdk] ${method} _debug`, (response.result as { _debug?: unknown })._debug);
-        }
-        try {
-          console.log(`[tipt-sdk] ${method} JSON`, JSON.stringify(response.result, null, 2));
-        } catch (error) {
-          console.log(`[tipt-sdk] ${method} JSON stringify failed`, error);
-        }
-      }
       if (response.ok === false) {
         reject(new Error(response.error ?? `MPP extension wallet RPC "${method}" failed.`));
         return;
@@ -146,8 +127,6 @@ function callWalletRpc(
 
     window.addEventListener(MPP_WALLET_RPC_RESPONSE_EVENT, onResponse as EventListener);
     const detail: MppWalletRpcRequestDetail = { requestId, method, params };
-    // [TIPT-DIAG] temporary
-    console.log('[tipt-sdk] wallet-rpc →', method, params);
     window.dispatchEvent(new CustomEvent(MPP_WALLET_RPC_EVENT, { detail }));
   });
 }
@@ -181,16 +160,6 @@ function createBridgeWallet(options: BridgeWalletOptions): WalletLike {
         WalletLike['getLightningSendRequest']
       >;
     },
-    async getTransferFromSsp(id) {
-      return callWalletRpc('getTransferFromSsp', { id }, options.readTimeoutMs) as ReturnType<
-        NonNullable<WalletLike['getTransferFromSsp']>
-      >;
-    },
-    async getTransfer(id) {
-      return callWalletRpc('getTransfer', { id }, options.readTimeoutMs) as ReturnType<
-        NonNullable<WalletLike['getTransfer']>
-      >;
-    },
     // Not needed by `charge` (invoice creation lives in the extension's own
     // wallet UI), but required to satisfy the structural WalletLike type.
     async createLightningInvoice() {
@@ -213,13 +182,6 @@ export interface CreateLightningMppExtensionClientOptions {
   extensionProbeTimeoutMs?: number;
   paymentMethods?: string[];
   intents?: string[];
-  preferSpark?: boolean;
-  /**
-   * Retained for API compatibility. The Spark route is now detected from the
-   * wallet's `payLightningInvoice` result during preimage resolution, so this
-   * flag no longer affects the payment flow.
-   */
-  includeSparkInvoice?: boolean;
   maxFeeSats?: number;
   network?: 'mainnet' | 'regtest' | 'signet';
 }
@@ -260,11 +222,6 @@ export function createLightningMppExtensionClient(
 
   const chargeMethod = lightningCharge({
     wallet,
-    preferSpark: options.preferSpark ?? true,
-    // [TIPT-DIAG] temporary — logs challenge/paying/paid so we can see whether
-    // the flow re-enters (server rejecting the credential = version skew) or
-    // stalls before 'paid' (preimage resolution).
-    onProgress: (e) => console.log('[tipt-sdk] charge progress', e),
     ...(options.maxFeeSats !== undefined ? { maxFeeSats: options.maxFeeSats } : {}),
     ...(options.network ? { network: options.network } : {}),
   });

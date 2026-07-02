@@ -3,7 +3,6 @@
 import { SparkWallet } from '@buildonspark/spark-sdk';
 import { decryptText } from './crypto';
 import { loadUnlockKey } from './lib/key-store';
-import { log } from './lib/logger';
 import { getStringField } from './lib/object-helpers';
 
 interface WalletPayload {
@@ -20,57 +19,17 @@ const PREIMAGE_KEYS = ['paymentPreimage', 'preimage', 'payment_preimage'] as con
 // BigInt or class instances) and leaks no extra wallet state to the page.
 // The extension does NOT interpret these: preimage resolution and credential
 // building happen page-side.
-export interface WalletUserRequestProjection {
-  id?: string;
-  paymentPreimage?: string;
-  status?: string;
-}
 export interface WalletPayProjection {
   id: string;
   paymentPreimage?: string;
-  sparkInvoice?: string;
   status?: string;
-  // Present iff the SDK result carried a `userRequest` — the SDK uses this
-  // presence to detect the Spark route, so we preserve it faithfully.
-  userRequest?: WalletUserRequestProjection;
-  // [TIPT-DIAG] temporary raw-shape dump for debugging Spark preimage resolution.
-  _debug?: unknown;
 }
 export interface WalletSendRequestProjection {
   paymentPreimage?: string;
   status?: string;
-  _debug?: unknown;
 }
 export interface WalletTransferProjection {
   status?: string;
-  sparkInvoice?: string;
-  userRequest?: WalletUserRequestProjection;
-  _debug?: unknown;
-}
-
-// [TIPT-DIAG] temporary — JSON/clone-safe structural dump of a raw SparkWallet
-// object so we can inspect field names/ids across the bridge in the page
-// console. Remove once Spark preimage resolution is confirmed.
-function debugDump(value: unknown): unknown {
-  const seen = new WeakSet<object>();
-  const norm = (v: unknown, depth: number): unknown => {
-    if (typeof v === 'bigint') return `bigint:${v.toString()}`;
-    if (v === null || typeof v !== 'object') return v;
-    if (seen.has(v as object)) return '[circular]';
-    seen.add(v as object);
-    if (Array.isArray(v)) return depth <= 0 ? `[array:${v.length}]` : v.slice(0, 4).map((x) => norm(x, depth - 1));
-    const obj = v as Record<string, unknown>;
-    const out: Record<string, unknown> = {};
-    for (const k of Object.keys(obj)) {
-      const val = obj[k];
-      if (typeof val === 'function') continue;
-      out[k] = depth <= 0
-        ? (val && typeof val === 'object' ? `[${Array.isArray(val) ? 'array' : 'object'}]` : norm(val, 0))
-        : norm(val, depth - 1);
-    }
-    return out;
-  };
-  return norm(value, 3);
 }
 
 // Extracts a preimage already present on a payment/transfer/request object
@@ -86,18 +45,6 @@ function extractPreimage(source: Record<string, unknown>): string | null {
   return null;
 }
 
-function projectUserRequest(value: unknown): WalletUserRequestProjection | undefined {
-  if (!value || typeof value !== 'object') return undefined;
-  const u = value as Record<string, unknown>;
-  const out: WalletUserRequestProjection = {};
-  const id = getStringField(u, ['id']);
-  if (id) out.id = id;
-  const preimage = getStringField(u, PREIMAGE_KEYS);
-  if (preimage) out.paymentPreimage = preimage;
-  if (typeof u.status === 'string') out.status = u.status;
-  return out;
-}
-
 function projectPayResult(result: unknown): WalletPayProjection {
   const r = (result ?? {}) as Record<string, unknown>;
   const out: WalletPayProjection = {
@@ -105,18 +52,7 @@ function projectPayResult(result: unknown): WalletPayProjection {
   };
   const preimage = getStringField(r, PREIMAGE_KEYS);
   if (preimage) out.paymentPreimage = preimage;
-  const sparkInvoice = getStringField(r, ['sparkInvoice']);
-  if (sparkInvoice) out.sparkInvoice = sparkInvoice;
   if (typeof r.status === 'string') out.status = r.status;
-
-  // Include the nested `userRequest` only if the SDK result actually carries
-  // one (it lets the SDK short-circuit when the preimage is already present).
-  // The SDK no longer keys its poll route on this field — it infers the route
-  // per-poll from `getTransfer`/`getLightningSendRequest` responses — so we do
-  // NOT need to synthesize a hint for Spark transfers here.
-  const projectedUserRequest = projectUserRequest(r.userRequest);
-  if (projectedUserRequest) out.userRequest = projectedUserRequest;
-  out._debug = debugDump(r); // [TIPT-DIAG] temporary
   return out;
 }
 
@@ -216,37 +152,6 @@ export async function getLightningSendRequestRaw(
   const preimage = getStringField(req, PREIMAGE_KEYS);
   if (preimage) out.paymentPreimage = preimage;
   if (typeof req.status === 'string') out.status = req.status;
-  out._debug = debugDump(req); // [TIPT-DIAG] temporary
-  return out;
-}
-
-export async function getTransferFromSspRaw(
-  id: string,
-  walletRaw?: string,
-): Promise<WalletTransferProjection | null> {
-  const wallet = await ensureWalletReady(walletRaw);
-  const w = wallet as unknown as {
-    getTransferFromSsp?: (id: string) => Promise<Record<string, unknown> | null | undefined>;
-  };
-  if (typeof w.getTransferFromSsp !== 'function') return null;
-  let transfer: Record<string, unknown> | null | undefined;
-  try {
-    transfer = await w.getTransferFromSsp(id);
-  } catch {
-    return null;
-  }
-  if (!transfer || typeof transfer !== 'object') return null;
-  const out: WalletTransferProjection = {};
-  if (typeof (transfer as { status?: unknown }).status === 'string') {
-    out.status = (transfer as { status: string }).status;
-  }
-  const sparkInvoice = getStringField(transfer, ['sparkInvoice']);
-  if (sparkInvoice) out.sparkInvoice = sparkInvoice;
-  const userRequest = (transfer as { userRequest?: unknown }).userRequest;
-  if (userRequest !== undefined && userRequest !== null && typeof userRequest === 'object') {
-    out.userRequest = projectUserRequest(userRequest) ?? {};
-  }
-  out._debug = debugDump(transfer); // [TIPT-DIAG] temporary
   return out;
 }
 
@@ -274,13 +179,6 @@ export async function getTransferRaw(
   if (typeof (transfer as { status?: unknown }).status === 'string') {
     out.status = (transfer as { status: string }).status;
   }
-  const sparkInvoice = getStringField(transfer, ['sparkInvoice']);
-  if (sparkInvoice) out.sparkInvoice = sparkInvoice;
-  const userRequest = (transfer as { userRequest?: unknown }).userRequest;
-  if (userRequest !== undefined && userRequest !== null && typeof userRequest === 'object') {
-    out.userRequest = projectUserRequest(userRequest) ?? {};
-  }
-  out._debug = debugDump(transfer); // [TIPT-DIAG] temporary
   return out;
 }
 
@@ -304,9 +202,6 @@ export interface PayOptions {
   // Pre-computed maximum fee from the caller. When omitted, we ask the SDK
   // for a fee estimate and apply the standard headroom multiplier.
   maxFeeSats?: number;
-  // Optional route preference for BOLT11 invoices. Defaults to true to keep
-  // existing behavior unless the caller explicitly disables it.
-  preferSpark?: boolean;
 }
 
 export interface PayResult {
@@ -335,7 +230,7 @@ async function payLightningInvoiceCore(
     maxFeeSats = estimated !== null ? Math.max(25, Math.ceil(estimated * 2)) : 50;
   }
 
-  const preferSpark = options.preferSpark ?? true;
+  const preferSpark = false;
   const result = await wallet.payLightningInvoice({ invoice, maxFeeSats, preferSpark });
   return result as unknown as Record<string, unknown>;
 }
@@ -430,65 +325,6 @@ export async function getWalletBalance(): Promise<bigint> {
 export async function getSparkAddress(): Promise<string> {
   if (!cachedWallet) throw new Error('Wallet not initialized.');
   return cachedWallet.getSparkAddress();
-}
-
-export interface SparkTransferOptions {
-  // Same cold-restart semantics as `PayOptions.walletRaw` — the background
-  // hands the encrypted blob across the IPC boundary so the offscreen can
-  // re-initialise the SDK if Chrome reclaimed the document since the last
-  // call. The PIN never crosses the boundary; decryption happens locally
-  // via the IndexedDB-cached AES-GCM key (see decryptMnemonicWithCachedKey).
-  walletRaw?: string;
-}
-
-export interface SparkTransferResult {
-  // Spark transfer id (WalletTransfer.id) — opaque to TIPT, useful only as
-  // a receipt the page can quote back to the merchant. There is no
-  // Lightning preimage on this path.
-  txId: string;
-}
-
-// Spark-native transfer to a receiver Spark address. Mirrors `payInvoice`'s
-// cold-restart pattern (ensureWalletFromBlob + timing logs) so the prewarm
-// fastpath benefits both settlement types identically. We *do not* attempt
-// to validate the address here — the SDK rejects malformed addresses with
-// a structured error which we surface to the caller as-is.
-export async function payToSparkAddress(
-  receiverSparkAddress: string,
-  amountSats: number,
-  options: SparkTransferOptions = {},
-): Promise<SparkTransferResult> {
-  const tStart = Date.now();
-  if (!Number.isFinite(amountSats) || amountSats <= 0 || !Number.isInteger(amountSats)) {
-    throw new Error('Spark transfer requires a positive integer amountSats.');
-  }
-  if (!cachedWallet) {
-    if (!options.walletRaw) {
-      throw new Error('Wallet not initialized and no encrypted blob provided to re-initialize.');
-    }
-    await ensureWalletFromBlob(options.walletRaw);
-  }
-  const tWalletReady = Date.now();
-
-  const wallet = cachedWallet;
-  if (!wallet) throw new Error('Wallet not initialized.');
-
-  const result = await wallet.transfer({ amountSats, receiverSparkAddress });
-  const tTransferReturned = Date.now();
-
-  const r = result as unknown as Record<string, unknown>;
-  const txId = typeof r.id === 'string' ? r.id : '';
-  if (!txId) {
-    throw new Error('Spark transfer completed but no transfer id was returned.');
-  }
-
-  log(
-    `[TIPT-OFFSCREEN] payToSparkAddress timing (ms): walletReady=${tWalletReady - tStart}`,
-    `transfer=${tTransferReturned - tWalletReady}`,
-    `total=${tTransferReturned - tStart}`,
-  );
-
-  return { txId };
 }
 
 // Recursive in-place walk that converts every `bigint` to its decimal

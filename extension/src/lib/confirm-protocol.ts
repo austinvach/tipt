@@ -17,21 +17,9 @@ export interface PersistedConfirmDetails {
   host: string;
   url: string;
   method: string;
-  // For Lightning payments this is the BOLT11 invoice; for Spark transfers
-  // it's the receiver Spark address. Kept as a single field so the existing
-  // chrome.storage.session record shape stays stable — the popup decides
-  // how to display it based on `paymentKind`.
+  // For Lightning payments this is the BOLT11 invoice.
   invoice: string;
   amountSats: number | null;
   expiresAt: number;
-  // Discriminates the payment branch the background picked from
-  // classifyPaymentTarget(). Older confirm entries written before this
-  // field was added would deserialise as `undefined` — the popup treats
-  // that as 'lightning' for back-compat with any in-flight prompts that
-  // straddle the extension update.
-  paymentKind?: 'lightning' | 'spark';
-  // Optional routing hints surfaced by the page SDK for Lightning invoices.
-  // `preferSpark` means "attempt Spark first when possible".
-  preferSpark?: boolean;
-  includeSparkInvoice?: boolean;
+  paymentKind?: 'lightning';
 }

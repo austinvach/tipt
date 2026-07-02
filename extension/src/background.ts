@@ -181,8 +181,7 @@ function sanitise402Error(raw: string | undefined): Mpp402ErrorCode {
     || s.includes('cannot prompt')
     || s.includes('failed to resolve request host')
     || s.includes('no invoice found')
-    || s.includes('not a recognised lightning invoice or spark address')
-    || s.includes('spark transfers require')
+    || s.includes('payment target is not a recognised lightning invoice')
     || s.includes('missing payment challenge fields')
   ) return 'unavailable';
   return 'failed';
@@ -255,8 +254,6 @@ function promptForPaymentApproval(
       amountSats,
       expiresAt,
       paymentKind: paymentKind === 'unknown' ? 'lightning' : paymentKind,
-      preferSpark: payload.challenge.preferSpark,
-      includeSparkInvoice: payload.challenge.includeSparkInvoice,
     };
     pendingConfirms.set(id, { resolve, host });
     hostsWithPendingConfirm.add(host);
@@ -436,7 +433,6 @@ async function approveLightningPayment(
   amountSats: number | null,
   host: string,
   sender: chrome.runtime.MessageSender,
-  preferSpark: boolean | undefined,
 ): Promise<{ ok: true; walletRaw: string } | { ok: false; error: string }> {
   // Wallet-existence gate. Precedes tryAutoApprove: a host the user
   // previously allowlisted must not silently auto-approve into a payment we
@@ -469,7 +465,6 @@ async function approveLightningPayment(
         scheme: 'Payment',
         invoice,
         amountSats: amountSats ?? undefined,
-        preferSpark,
       },
     };
     const prompt = await promptForPaymentApproval(payload, host, amountSats, 'lightning');
@@ -531,7 +526,6 @@ async function handleWalletPayRpc(
     return { ok: false, error: 'Failed to resolve request host for 402 payment.' };
   }
 
-  const preferSpark = typeof params.preferSpark === 'boolean' ? params.preferSpark : undefined;
   const maxFeeSats =
     typeof params.maxFeeSats === 'number'
       && Number.isFinite(params.maxFeeSats)
@@ -542,21 +536,20 @@ async function handleWalletPayRpc(
   prewarmWallet();
   const amountSats = decodeBolt11AmountSats(invoice);
 
-  const approval = await approveLightningPayment(invoice, amountSats, host, sender, preferSpark);
+  const approval = await approveLightningPayment(invoice, amountSats, host, sender);
   if (!approval.ok) return approval;
 
   await ensureOffscreen();
   const result = await sendOffscreenWalletRpc(MSG.OFFSCREEN_PAY_LIGHTNING_RAW, {
     invoice,
     walletRaw: approval.walletRaw,
-    preferSpark,
     maxFeeSats,
   });
   return { ok: true, result };
 }
 
 // Wallet-RPC read handler for the SDK's preimage-resolution follow-ups
-// (getLightningSendRequest / getTransferFromSsp / getTransfer). These take an id that can only be
+// (getLightningSendRequest). These take an id that can only be
 // obtained from an approved payLightningInvoice result and only ever expose
 // the user's own wallet data, so they run without a fresh approval prompt.
 async function handleWalletReadRpc(
@@ -788,10 +781,6 @@ const handlers: Record<string, MessageHandler> = {
           response = await handleWalletPayRpc(params, sender);
         } else if (method === 'getLightningSendRequest') {
           response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_SEND_REQUEST, params, sender);
-        } else if (method === 'getTransferFromSsp') {
-          response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_TRANSFER_FROM_SSP, params, sender);
-        } else if (method === 'getTransfer') {
-          response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_TRANSFER, params, sender);
         } else {
           response = { ok: false, error: 'Unsupported wallet RPC method.' };
         }

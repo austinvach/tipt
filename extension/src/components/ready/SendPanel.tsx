@@ -61,7 +61,7 @@ export function SendPanel({ state, setters, actions }: SendPanelProps) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-neutral-500 dark:text-neutral-400">
-        Supports LNURL/Lightning Address, direct BOLT11 invoices, and Spark addresses.
+        Supports LNURL/Lightning Address and direct BOLT11 invoices.
       </p>
 
       {(sendStep === 'input' || sendStep === 'amount') && (
@@ -81,7 +81,7 @@ export function SendPanel({ state, setters, actions }: SendPanelProps) {
                 }
               }}
               onKeyDown={(e) => e.key === 'Enter' && sendInput.trim() && onSubmit()}
-              placeholder="lnbc... / austinvach@cash.app / sp1..."
+              placeholder="lnbc... / austinvach@cash.app"
               className="min-w-0 px-3 py-2 rounded-lg bg-white border border-neutral-300 text-xs text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-neutral-500/50 dark:bg-neutral-800 dark:border-neutral-700 dark:text-neutral-200 dark:placeholder-neutral-600 dark:focus:border-neutral-400/50"
             />
             <label className="text-xs text-neutral-400 whitespace-nowrap">Amount</label>
