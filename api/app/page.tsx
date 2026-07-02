@@ -50,12 +50,12 @@ export default function Home() {
     <main className="mx-auto max-w-3xl px-6 py-16">
       <header className="mb-12">
         <p className="mb-2 font-mono text-xs uppercase tracking-widest text-amber-500">
-          Machine Payable Protocol
+          Machine Payments Protocol
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight">MPP API</h1>
+        <h1 className="text-3xl font-semibold tracking-tight">TIPT API</h1>
         <p className="mt-3 text-stone-400">
           A demo API whose premium endpoints are gated behind Lightning
-          payments. Protected routes reply with{" "}
+          payments and the Machine Payments Protocol (MPP). Protected routes reply with{" "}
           <code className="rounded bg-white/5 px-1.5 py-0.5 text-amber-300">
             HTTP 402 Payment Required
           </code>{" "}
