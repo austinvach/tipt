@@ -199,7 +199,7 @@ export default function ConfirmApp() {
   return (
     <div
       ref={rootRef}
-      className="w-[360px] bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 p-5 flex flex-col gap-4"
+      className="w-90 bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100 p-5 flex flex-col gap-4"
     >
       {error && (
         <div className="p-3 rounded-xl border border-red-300 bg-red-50 text-red-800 text-xs dark:bg-red-950/40 dark:border-red-900 dark:text-red-300">
