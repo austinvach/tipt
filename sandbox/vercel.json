@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://mppapi.replit.app/api/$1"
+      "destination": "https://tiptapi.vercel.app/api/$1"
     },
     {
       "source": "/(.*)",

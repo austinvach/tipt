@@ -18,10 +18,10 @@ pnpm run build
 
 ## Architecture
 
-The sandbox currently runs as a client-first app that calls `/api` on the same origin:
+The sandbox runs as a client-first app that calls `/api` by default and proxies that route to the hosted API in local development:
 
 - **App**: React/Vite frontend at repository root.
-- **API**: `/api` is proxied/rewritten to `https://mppapi.replit.app/api`.
+- **API**: `/api` by default, proxied to `https://tiptapi.vercel.app/api` in local development.
 
 Project-level standardized commands:
 
@@ -50,6 +50,12 @@ Optional: override the API base URL for client builds/runs:
 VITE_API_BASE_URL=/api
 ```
 
+Optional: override the sandbox dev server port (defaults to `5173`):
+
+```bash
+PORT=5173
+```
+
 ## Deploying To Vercel
 
 This repo is configured for frontend-only deployment on Vercel.
@@ -60,7 +66,7 @@ This repo is configured for frontend-only deployment on Vercel.
 4. Ensure output directory is `dist`.
 5. Set `VITE_API_BASE_URL` only if you need a non-default API host.
 
-The included `vercel.json` rewrites `/api/*` to the upstream MPP API and handles SPA routes like `/vod` on refresh.
+The included `vercel.json` rewrites `/api/*` to `https://tiptapi.vercel.app/api/*` and handles SPA routes like `/vod` on refresh.
 
 ## Troubleshooting
 

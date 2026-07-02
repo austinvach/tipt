@@ -68,7 +68,7 @@ export default defineConfig({
     allowedHosts: true,
     proxy: {
       "/api": {
-        target: "https://mppapi.replit.app",
+        target: "https://tiptapi.vercel.app",
         changeOrigin: true,
       },
     },
