@@ -22,6 +22,27 @@ export const charge = Method.from({
   },
 })
 
+export const sparkCharge = Method.from({
+  intent: 'charge',
+  name: 'spark',
+  schema: {
+    credential: {
+      payload: z.object({
+        transferId: z.string(),
+      }),
+    },
+    request: z.object({
+      amount: z.string(),
+      currency: z.optional(z.string()),
+      description: z.optional(z.string()),
+      methodDetails: z.optional(z.object({
+        receiverSparkAddress: z.string(),
+        receiverIdentityPublicKey: z.optional(z.string()),
+      })),
+    }),
+  },
+})
+
 // Internal-only schema retained so existing session implementation files keep
 // compiling, but session is not exported from the public SDK surface.
 export const session = Method.from({

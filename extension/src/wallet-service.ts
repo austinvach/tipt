@@ -275,6 +275,19 @@ export async function payLightningInvoiceRaw(
   return projectPayResult(result);
 }
 
+export async function transferRaw(
+  receiverSparkAddress: string,
+  amountSats: number,
+  options: PayOptions = {},
+): Promise<WalletPayProjection> {
+  const wallet = await ensureWalletReady(options.walletRaw);
+  const w = wallet as unknown as {
+    transfer: (params: { receiverSparkAddress: string; amountSats: number }) => Promise<Record<string, unknown>>;
+  };
+  const result = await w.transfer({ receiverSparkAddress, amountSats });
+  return projectPayResult(result);
+}
+
 export async function createLightningInvoiceRaw(options: {
   walletRaw: string;
   amountSats: number;

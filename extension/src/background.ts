@@ -550,6 +550,46 @@ async function handleWalletPayRpc(
   return { ok: true, result };
 }
 
+// Wallet-RPC pay handler for direct Spark transfers. Uses the same approval
+// and allowlist flow as Lightning payments, then forwards transfer execution
+// to the offscreen wallet worker.
+async function handleWalletTransferRpc(
+  params: Record<string, unknown>,
+  sender: chrome.runtime.MessageSender,
+): Promise<WalletRpcResult> {
+  const receiverSparkAddress = nonEmptyString(params.receiverSparkAddress);
+  if (!receiverSparkAddress || receiverSparkAddress.length > MAX_INVOICE_LEN) {
+    return { ok: false, error: 'No receiver Spark address found in payment request.' };
+  }
+  const amountSats =
+    typeof params.amountSats === 'number'
+      && Number.isFinite(params.amountSats)
+      && params.amountSats > 0
+      ? Math.floor(params.amountSats)
+      : 0;
+  if (!amountSats) {
+    return { ok: false, error: 'No transfer amount found in payment request.' };
+  }
+
+  const authoritativeUrl = sender.url ?? sender.tab?.url;
+  const host = authoritativeUrl ? getHostFromUrl(authoritativeUrl) : null;
+  if (!host) {
+    return { ok: false, error: 'Failed to resolve request host for 402 payment.' };
+  }
+
+  prewarmWallet();
+  const approval = await approveLightningPayment(receiverSparkAddress, amountSats, host, sender);
+  if (!approval.ok) return approval;
+
+  await ensureOffscreen();
+  const result = await sendOffscreenWalletRpc(MSG.OFFSCREEN_TRANSFER_RAW, {
+    receiverSparkAddress,
+    amountSats,
+    walletRaw: approval.walletRaw,
+  });
+  return { ok: true, result };
+}
+
 // Wallet-RPC read handler for the SDK's preimage-resolution follow-ups
 // (getLightningSendRequest). These take an id that can only be
 // obtained from an approved payLightningInvoice result and only ever expose
@@ -781,6 +821,8 @@ const handlers: Record<string, MessageHandler> = {
       try {
         if (method === 'payLightningInvoice') {
           response = await handleWalletPayRpc(params, sender);
+        } else if (method === 'transfer') {
+          response = await handleWalletTransferRpc(params, sender);
         } else if (method === 'getLightningSendRequest') {
           response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_SEND_REQUEST, params, sender);
         } else if (method === 'getTransfer') {

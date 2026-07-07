@@ -1,23 +1,170 @@
 import { Mppx, spark } from "@tipt/sdk/server";
+import { BodyDigest, Challenge } from "mppx";
 
 const mppx = Mppx.create({
   methods: [
     spark.charge({
       mnemonic: process.env.MNEMONIC!,
     }),
+    spark.spark({
+      mnemonic: process.env.MNEMONIC!,
+    }),
   ],
   secretKey: process.env.MPP_SECRET_KEY!,
 });
 
-/**
- * mppx inspects the incoming request headers to detect a payment proof and to
- * build the invoice challenge. Route handlers may have already consumed the
- * request body (e.g. POST /api/image), so we hand mppx a fresh bodyless GET
- * request carrying the same URL and headers.
- */
-function toChargeRequest(req: Request): Request {
-  const headers = new Headers(req.headers);
-  return new Request(req.url, { method: "GET", headers });
+type ChargeMethod = "bitcoin" | "spark";
+const CHARGE_METHODS: ChargeMethod[] = ["bitcoin", "spark"];
+
+function parseAcceptPaymentPreference(headerValue: string): ChargeMethod[] {
+  const intent = "charge";
+  const scores = new Map<ChargeMethod, { q: number; specificity: number }>();
+
+  for (const rawPart of headerValue.split(",")) {
+    const part = rawPart.trim();
+    if (!part) continue;
+    const [token, ...params] = part.split(";").map((s) => s.trim());
+    const [methodToken, intentToken] = token.split("/");
+    if (!methodToken || !intentToken) continue;
+
+    let q = 1;
+    for (const param of params) {
+      const [k, v] = param.split("=").map((s) => s.trim());
+      if (k?.toLowerCase() !== "q" || !v) continue;
+      const parsed = Number(v);
+      if (Number.isFinite(parsed)) q = parsed;
+    }
+    if (q <= 0) continue;
+
+    for (const method of CHARGE_METHODS) {
+      const methodMatches = methodToken === "*" || methodToken === method;
+      const intentMatches = intentToken === "*" || intentToken === intent;
+      if (!methodMatches || !intentMatches) continue;
+
+      const specificity =
+        (methodToken === method ? 1 : 0) + (intentToken === intent ? 1 : 0);
+      const current = scores.get(method);
+      if (!current || q > current.q || (q === current.q && specificity > current.specificity)) {
+        scores.set(method, { q, specificity });
+      }
+    }
+  }
+
+  const ranked = [...CHARGE_METHODS]
+    .map((method, index) => ({
+      method,
+      rank: scores.get(method),
+      index,
+    }))
+    .filter((entry) => entry.rank !== undefined)
+    .sort((a, b) => {
+      if (a.rank!.q !== b.rank!.q) return b.rank!.q - a.rank!.q;
+      if (a.rank!.specificity !== b.rank!.specificity) {
+        return b.rank!.specificity - a.rank!.specificity;
+      }
+      return a.index - b.index;
+    })
+    .map((entry) => entry.method);
+
+  // Spec allows ignoring malformed/unsatisfied preferences; fallback to server order.
+  return ranked.length > 0 ? ranked : [...CHARGE_METHODS];
+}
+
+async function computeRequestDigest(req: Request): Promise<string | undefined> {
+  if (req.method === "GET" || req.method === "HEAD") return undefined;
+  const cloned = req.clone();
+  const bodyText = await cloned.text();
+  return BodyDigest.compute(bodyText);
+}
+
+function composeCharge(
+  req: Request,
+  opts: { amount: number; description: string },
+) {
+  const description = sanitizeHeaderText(opts.description);
+  return mppx.compose(
+    [
+      "bitcoin/charge",
+      {
+        amount: String(opts.amount),
+        currency: "sat",
+        description,
+      },
+    ],
+    [
+      "spark/charge",
+      {
+        amount: String(opts.amount),
+        currency: "sat",
+        description,
+      },
+    ],
+  )(req);
+}
+
+async function maybeBindDigestChallenges(
+  req: Request,
+  opts: { amount: number; description: string },
+  challengeResponse: Response,
+): Promise<Response> {
+  const digest = await computeRequestDigest(req);
+  if (!digest) return challengeResponse;
+
+  const description = sanitizeHeaderText(opts.description);
+  const orderedMethods = (() => {
+    const acceptPayment = req.headers.get("Accept-Payment");
+    if (!acceptPayment) return [...CHARGE_METHODS];
+    try {
+      return parseAcceptPaymentPreference(acceptPayment);
+    } catch {
+      return [...CHARGE_METHODS];
+    }
+  })();
+
+  const generated = await Promise.all(
+    orderedMethods.map(async (methodName) => {
+      const baseChallenge =
+        methodName === "bitcoin"
+          ? await mppx.challenge.bitcoin.charge({
+              amount: String(opts.amount),
+              currency: "sat",
+              description,
+            })
+          : await mppx.challenge.spark.charge({
+              amount: String(opts.amount),
+              currency: "sat",
+              description,
+            });
+
+      return Challenge.from({
+        secretKey: process.env.MPP_SECRET_KEY!,
+        realm: baseChallenge.realm,
+        method: baseChallenge.method,
+        intent: baseChallenge.intent,
+        request: baseChallenge.request,
+        ...(baseChallenge.description !== undefined
+          ? { description: baseChallenge.description }
+          : {}),
+        ...(baseChallenge.expires !== undefined
+          ? { expires: baseChallenge.expires }
+          : {}),
+        ...(baseChallenge.opaque !== undefined ? { opaque: baseChallenge.opaque } : {}),
+        digest,
+      });
+    }),
+  );
+
+  const headers = new Headers(challengeResponse.headers);
+  headers.delete("www-authenticate");
+  for (const challenge of generated) {
+    headers.append("www-authenticate", Challenge.serialize(challenge));
+  }
+
+  const body = await challengeResponse.text();
+  return new Response(body, {
+    status: challengeResponse.status,
+    headers,
+  });
 }
 
 /**
@@ -34,19 +181,10 @@ function sanitizeHeaderText(text: string): string {
     .replace(/[^\x20-\x7E]/g, "");
 }
 
-function paymentRequired(challenge: Response): Response {
-  // Preserve the upstream challenge headers (including WWW-Authenticate) and
-  // return a JSON 402 body.
-  const headers = new Headers(challenge.headers);
-  headers.set("content-type", "application/json");
-  return new Response(JSON.stringify({ error: "Payment required" }), {
-    status: 402,
-    headers,
-  });
-}
-
 /**
- * Gates a JSON response behind an MPP HTTP 402 Lightning payment.
+ * Gates a JSON response behind an MPP HTTP 402 payment challenge.
+ * Offers both `bitcoin/charge` (plain BOLT11 invoice) and `spark/charge`
+ * (direct Spark transfer) and lets Accept-Payment negotiate ordering.
  * If the request lacks valid payment, responds 402 with the invoice challenge.
  * Otherwise builds the body, attaches the payment receipt headers, and responds 200.
  */
@@ -55,15 +193,10 @@ export async function gatedJson(
   opts: { amount: number; description: string },
   buildBody: () => unknown,
 ): Promise<Response> {
-  const chargeResult = await mppx.charge({
-    amount: String(opts.amount),
-    currency: "sat",
-    description: sanitizeHeaderText(opts.description),
-    methodDetails: { invoice: "" },
-  })(toChargeRequest(req));
+  const chargeResult = await composeCharge(req, opts);
 
   if (chargeResult.status === 402) {
-    return paymentRequired(chargeResult.challenge as Response);
+    return maybeBindDigestChallenges(req, opts, chargeResult.challenge as Response);
   }
 
   const body = buildBody();
@@ -78,7 +211,8 @@ export async function gatedJson(
 }
 
 /**
- * Gates a binary (e.g. image) response behind an MPP HTTP 402 Lightning payment.
+ * Gates a binary (e.g. image) response behind an MPP HTTP 402 payment challenge.
+ * Offers both `bitcoin/charge` and `spark/charge` methods.
  * The charged-for work (`buildBody`) only runs after payment clears.
  */
 export async function gatedBinary(
@@ -86,15 +220,10 @@ export async function gatedBinary(
   opts: { amount: number; description: string },
   buildBody: () => Promise<{ data: Buffer; contentType: string }>,
 ): Promise<Response> {
-  const chargeResult = await mppx.charge({
-    amount: String(opts.amount),
-    currency: "sat",
-    description: sanitizeHeaderText(opts.description),
-    methodDetails: { invoice: "" },
-  })(toChargeRequest(req));
+  const chargeResult = await composeCharge(req, opts);
 
   if (chargeResult.status === 402) {
-    return paymentRequired(chargeResult.challenge as Response);
+    return maybeBindDigestChallenges(req, opts, chargeResult.challenge as Response);
   }
 
   const { data, contentType } = await buildBody();

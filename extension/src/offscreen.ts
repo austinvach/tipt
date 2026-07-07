@@ -7,6 +7,7 @@ import {
   getWalletFeeEstimate,
   payInvoice,
   payLightningInvoiceRaw,
+  transferRaw,
   getLightningSendRequestRaw,
   getTransferRaw,
   createLightningInvoiceRaw,
@@ -28,6 +29,18 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
     if (!invoice) return { ok: false, error: 'Missing invoice for offscreen payment.' };
     if (!walletRaw) return { ok: false, error: 'Missing wallet ciphertext for offscreen payment.' };
     const result = await payLightningInvoiceRaw(invoice, { walletRaw, maxFeeSats, preferSpark });
+    return { ok: true, result };
+  },
+  async [MSG.OFFSCREEN_TRANSFER_RAW](p) {
+    const receiverSparkAddress = p.receiverSparkAddress as string | undefined;
+    const walletRaw = p.walletRaw as string | undefined;
+    const amountSats = typeof p.amountSats === 'number' ? p.amountSats : 0;
+    if (!receiverSparkAddress) return { ok: false, error: 'Missing receiverSparkAddress for transfer.' };
+    if (!walletRaw) return { ok: false, error: 'Missing wallet ciphertext for transfer.' };
+    if (!Number.isFinite(amountSats) || amountSats <= 0) {
+      return { ok: false, error: 'Invalid amountSats for transfer.' };
+    }
+    const result = await transferRaw(receiverSparkAddress, amountSats, { walletRaw });
     return { ok: true, result };
   },
   async [MSG.OFFSCREEN_GET_SEND_REQUEST](p) {

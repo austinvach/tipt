@@ -17,7 +17,7 @@ export function charge(parameters: charge.Parameters): Method.AnyServer {
     mnemonic,
     network = 'mainnet',
     store = Store.memory(),
-    includeSparkInvoice = true,
+    includeSparkInvoice = false,
     wallet,
   } = parameters
 

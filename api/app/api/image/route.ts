@@ -7,9 +7,10 @@ export const dynamic = "force-dynamic";
 const IMAGE_PRICE = 100;
 
 export async function POST(req: Request) {
+  const promptRequest = req.clone();
   let body: { prompt?: unknown };
   try {
-    body = await req.json();
+    body = await promptRequest.json();
   } catch {
     body = {};
   }

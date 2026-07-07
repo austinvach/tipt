@@ -17,6 +17,10 @@ export interface WalletLike {
     userRequestId?: string
     userRequest?: { id?: string; paymentPreimage?: string }
   } | null>
+  transfer?(params: {
+    amountSats: number
+    receiverSparkAddress: string
+  }): Promise<{ id: string; status?: string; totalValue?: number }>
   createLightningInvoice(params: {
     amountSats: number
     memo: string

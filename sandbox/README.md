@@ -1,10 +1,10 @@
 # TIPT Sandbox
 
-This folder contains a single Next.js app for Lightning 402 payment demos.
+This folder contains the Next.js demo app for paid-content flows using the local extension and API.
 
 ## Setup
 
-From this folder:
+From repository root:
 
 ```bash
 pnpm install
@@ -18,42 +18,79 @@ pnpm run build
 
 ## Architecture
 
-The sandbox runs as a client-first app that calls `/api` by default and proxies that route to the hosted API in local development:
+- App: Next.js frontend rooted in `src/app`.
+- SDK: Uses `@tipt/sdk` extension client (`createExtensionClient`).
+- API target: `/api` by default (rewritten to hosted API), or local API via `NEXT_PUBLIC_API_BASE_URL`.
 
-- **App**: Next.js frontend rooted in `src/app`.
-- **API**: `/api` by default, proxied to `https://tiptapi.vercel.app/api` in local development.
-
-Project-level standardized commands:
+Project commands:
 
 - `pnpm run dev`
 - `pnpm run build`
-- `pnpm run preview`
+- `pnpm run start`
+- `pnpm run typecheck`
 
-## Running the Application Locally
+## Running Locally With Extension + Local API
 
-### App
-
-The app works standalone and calls `/api` by default:
+### 1) Build and load extension (from repo root)
 
 ```bash
-pnpm run dev
+pnpm --filter @tipt/extension run build
 ```
 
-Next.js will print the local URL. The app includes two experiments:
+Open `chrome://extensions`, enable Developer mode, click Load unpacked, and select `extension/dist`.
 
-- `/vod` (Video On-Demand)
-- `/news` (News Article Paywall)
+### 2) Run local API on port 5000 (from repo root)
 
-Optional: override the API base URL for client builds/runs:
+PowerShell:
+
+```powershell
+$env:PORT=5000; pnpm run dev:api
+```
+
+bash:
+
+```bash
+PORT=5000 pnpm run dev:api
+```
+
+### 3) Run sandbox against local API (from repo root)
+
+PowerShell:
+
+```powershell
+$env:NEXT_PUBLIC_API_BASE_URL="http://localhost:5000/api"; pnpm run dev:sandbox
+```
+
+bash:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
+```
+
+### 4) Open the app
+
+Next.js prints the local URL (usually `http://localhost:3000`).
+
+Routes:
+
+- `/vod`
+- `/news`
+- `/image-gen`
+
+## API Target Behavior
+
+By default, sandbox requests to `/api/*` are rewritten to the hosted API:
+
+```bash
+/api/* -> https://tiptapi.vercel.app/api/*
+```
+
+To use local API, set `NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api`.
+
+Optional: route client to same-origin `/api` instead:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=/api
-```
-
-Optional: override the sandbox dev server port (defaults to `5173`):
-
-```bash
-PORT=5173
 ```
 
 ## Deploying To Vercel

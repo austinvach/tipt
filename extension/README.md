@@ -27,7 +27,7 @@ pnpm run preview
 
 ## Quickstart
 
-1. Install dependencies:
+1. Install dependencies (from repository root):
 
 ```bash
 pnpm install
@@ -36,7 +36,7 @@ pnpm install
 2. Build the extension:
 
 ```bash
-pnpm run build
+pnpm --filter @tipt/extension run build
 ```
 
 3. Open Chrome extensions page:
@@ -47,7 +47,7 @@ chrome://extensions
 
 4. Enable Developer mode.
 5. Click Load unpacked.
-6. Select the `dist/extension` folder from this project.
+6. Select the `extension/dist` folder.
 7. Pin and open TIPT from the Chrome toolbar.
 
 ## First Run
@@ -64,8 +64,42 @@ After any code change:
 1. Rebuild:
 
 ```bash
-pnpm run build
+pnpm --filter @tipt/extension run build
 ```
 
 2. Return to `chrome://extensions`.
 3. Click Reload on the TIPT extension card.
+
+## Local Stack Integration
+
+To test end-to-end with local sandbox + API:
+
+1. Run API (from repo root):
+
+PowerShell:
+
+```powershell
+$env:PORT=5000; pnpm run dev:api
+```
+
+bash:
+
+```bash
+PORT=5000 pnpm run dev:api
+```
+
+2. Run sandbox against local API (from repo root):
+
+PowerShell:
+
+```powershell
+$env:NEXT_PUBLIC_API_BASE_URL="http://localhost:5000/api"; pnpm run dev:sandbox
+```
+
+bash:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
+```
+
+3. Open sandbox (usually `http://localhost:3000`) and approve payment prompts in the extension.

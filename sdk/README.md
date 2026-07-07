@@ -52,7 +52,7 @@ const mppx = Mppx.create({
 ## Defaults
 
 - Method name: `bitcoin`
-- `includeSparkInvoice`: `true` by default when creating invoices
+- `includeSparkInvoice`: `false` by default when creating Lightning invoices
 - `preferSpark`: `true` by default when paying invoices
 
 ## Build

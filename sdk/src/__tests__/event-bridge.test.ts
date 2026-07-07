@@ -24,7 +24,7 @@ describe('event-bridge constants', () => {
   });
 
   it('exports default requested capabilities', () => {
-    expect(DEFAULT_REQUESTED_PAYMENT_METHODS).toEqual(['lightning']);
+    expect(DEFAULT_REQUESTED_PAYMENT_METHODS).toEqual(['lightning', 'spark']);
     expect(DEFAULT_REQUESTED_INTENTS).toEqual(['charge']);
   });
 });
@@ -34,7 +34,7 @@ describe('buildMppProbeRequestDetail', () => {
     const detail = buildMppProbeRequestDetail();
     expect(detail).toEqual({
       type: 'request',
-      paymentMethods: ['lightning'],
+      paymentMethods: ['lightning', 'spark'],
       intents: ['charge'],
     });
   });

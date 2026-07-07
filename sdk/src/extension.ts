@@ -216,6 +216,17 @@ export function createExtensionWallet(options: CreateExtensionWalletOptions = {}
         NonNullable<WalletLike['getTransfer']>
       >;
     },
+    async transfer(params) {
+      await maybeProbe();
+      return callWalletRpcWithRecovery(
+        'transfer',
+        params,
+        paymentTimeoutMs,
+        maybeProbe,
+      ) as ReturnType<
+        NonNullable<WalletLike['transfer']>
+      >;
+    },
     async createLightningInvoice(params) {
       return callWalletRpcWithRecovery(
         'createLightningInvoice',
@@ -252,6 +263,10 @@ export function createExtensionClient(options: CreateExtensionClientOptions = {}
       ...(options.network ? { network: options.network } : {}),
       ...(options.maxFeeSats !== undefined ? { maxFeeSats: options.maxFeeSats } : {}),
       ...(options.preferSpark !== undefined ? { preferSpark: options.preferSpark } : {}),
+    }),
+    spark.spark({
+      wallet,
+      ...(options.network ? { network: options.network } : {}),
     }),
     ],
   });

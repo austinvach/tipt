@@ -17,6 +17,7 @@ const MPP_WALLET_RPC_EVENT = 'mpp:wallet-rpc';
 const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
 const WALLET_RPC_METHODS = [
   'payLightningInvoice',
+  'transfer',
   'getLightningSendRequest',
   'getTransfer',
 ] as const;
@@ -47,7 +48,7 @@ interface WalletRpcResponse {
   error?: string;
 }
 
-const SUPPORTED_PAYMENT_METHODS = ['lightning'] as const;
+const SUPPORTED_PAYMENT_METHODS = ['lightning', 'spark'] as const;
 const SUPPORTED_INTENTS = ['charge'] as const;
 const MPP_EXTENSION_EVENT = 'mpp:extension';
 const MPP_EVENT_BRIDGE_PROTOCOL_VERSION = '1.0.0';
@@ -161,6 +162,22 @@ function sanitizeWalletRpcParams(
     const preferSpark = takeBoolean(p.preferSpark);
     if (preferSpark !== undefined) out.preferSpark = preferSpark;
     return out;
+  }
+  if (method === 'transfer') {
+    const receiverSparkAddress = takeBoundedString(p.receiverSparkAddress, MAX_INVOICE_LEN);
+    if (!receiverSparkAddress) return null;
+    if (
+      typeof p.amountSats !== 'number'
+      || !Number.isFinite(p.amountSats)
+      || p.amountSats <= 0
+      || p.amountSats > Number.MAX_SAFE_INTEGER
+    ) {
+      return null;
+    }
+    return {
+      receiverSparkAddress,
+      amountSats: Math.floor(p.amountSats),
+    };
   }
   // getLightningSendRequest/getTransfer — a single bounded id string.
   const id = takeBoundedString(p.id, MAX_SHORT_FIELD_LEN);

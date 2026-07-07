@@ -9,7 +9,7 @@ export const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
 
 export const MPP_EVENT_BRIDGE_PROTOCOL_VERSION = '1.0.0';
 
-export const DEFAULT_REQUESTED_PAYMENT_METHODS = ['lightning'] as const;
+export const DEFAULT_REQUESTED_PAYMENT_METHODS = ['lightning', 'spark'] as const;
 export const DEFAULT_REQUESTED_INTENTS = ['charge'] as const;
 
 export interface MppResponseDetail {
@@ -32,6 +32,7 @@ export interface MppResponseDetail {
  */
 export type MppWalletRpcMethod =
   | 'payLightningInvoice'
+  | 'transfer'
   | 'getLightningSendRequest'
   | 'getTransfer'
   | 'createLightningInvoice';

@@ -11,7 +11,7 @@ This repository contains three related projects for Lightning payment flows:
 
 - extension: Chrome extension (Vite + React + TypeScript)
 - sdk: Publishable library package (tsup + TypeScript + Vitest)
-- sandbox: Demo client app (Vite + React + TypeScript)
+- sandbox: Demo client app (Next.js + TypeScript)
 - api: API server (Next.js + TypeScript)
 - package.json: Root monorepo scripts
 - pnpm-workspace.yaml: Workspace package configuration
@@ -73,6 +73,89 @@ pnpm run lint
 
 Use separate terminals from repository root.
 
+## End-to-End Local Setup (Latest Extension + Sandbox + API)
+
+This is the recommended flow to run everything locally with the latest code.
+
+### 1) Install dependencies
+
+```bash
+pnpm install
+```
+
+### 2) Configure API environment
+
+```bash
+cp api/.env.example api/.env
+```
+
+Then fill in at least:
+
+- `MNEMONIC`
+- `MPP_SECRET_KEY`
+
+For `/api/image`, also set:
+
+- `AI_INTEGRATIONS_GEMINI_API_KEY`
+
+### 3) Build SDK once
+
+```bash
+pnpm --filter @tipt/sdk run build
+```
+
+### 4) Build and load the extension in Chrome
+
+```bash
+pnpm --filter @tipt/extension run build
+```
+
+Then in Chrome:
+
+1. Open `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked**
+4. Select `extension/dist`
+
+After each extension change, rebuild and click **Reload** on the extension card.
+
+### 5) Run API locally (port 5000)
+
+PowerShell:
+
+```powershell
+$env:PORT=5000; pnpm run dev:api
+```
+
+bash:
+
+```bash
+PORT=5000 pnpm run dev:api
+```
+
+### 6) Run sandbox against local API
+
+PowerShell:
+
+```powershell
+$env:NEXT_PUBLIC_API_BASE_URL="http://localhost:5000/api"; pnpm run dev:sandbox
+```
+
+bash:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
+```
+
+Open the sandbox URL printed by Next.js (usually `http://localhost:3000`).
+
+### 7) First-run wallet flow
+
+1. Open the extension popup
+2. Create or restore wallet
+3. Unlock with PIN
+4. Approve payments from sandbox prompts
+
 ### 1) SDK watch mode
 
 ```bash
@@ -101,7 +184,20 @@ Then open chrome://extensions, enable Developer mode, click Load unpacked, and s
 pnpm run dev:sandbox
 ```
 
-The sandbox runs with Vite and exposes Lightning payment demo routes.
+The sandbox runs as a Next.js app and exposes paid-content demo routes.
+
+By default, sandbox `/api/*` requests are rewritten to the hosted API.
+To use your local API instead, run sandbox with:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm --filter @tipt/sandbox run dev
+```
+
+Run the API locally in another terminal:
+
+```bash
+pnpm run dev:api
+```
 
 ### 4) API server (api)
 
@@ -136,7 +232,8 @@ pnpm --filter @tipt/sdk run build
 ```bash
 pnpm --filter @tipt/sandbox run dev
 pnpm --filter @tipt/sandbox run build
-pnpm --filter @tipt/sandbox run preview
+pnpm --filter @tipt/sandbox run typecheck
+pnpm --filter @tipt/sandbox run start
 ```
 
 ## Notes
