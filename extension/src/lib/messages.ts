@@ -26,11 +26,13 @@ export const MSG = {
   DISPOSE_WALLET: 'TIPT_DISPOSE_WALLET',
   // Thin wallet-RPC passthroughs for the MPP charge flow (background →
   // offscreen). These return the RAW SparkWallet results (projected to the
-  // fields the page-side @buildonspark/lightning-mpp-sdk consumes) without
+  // fields the page-side @tipt/sdk consumes) without
   // interpreting them — no preimage polling, no credential building. The
   // page-side SDK owns preimage resolution and credential serialization.
   OFFSCREEN_PAY_LIGHTNING_RAW: 'TIPT_OFFSCREEN_PAY_LIGHTNING_RAW',
   OFFSCREEN_GET_SEND_REQUEST: 'TIPT_OFFSCREEN_GET_SEND_REQUEST',
+  OFFSCREEN_GET_TRANSFER: 'TIPT_OFFSCREEN_GET_TRANSFER',
+  OFFSCREEN_CREATE_LIGHTNING_INVOICE: 'TIPT_OFFSCREEN_CREATE_LIGHTNING_INVOICE',
   // Fire-and-forget warm-up: spin up the offscreen SparkWallet SDK ahead of
   // any actual 402 confirm, so the user doesn't pay the cold-start cost on
   // the critical path between clicking Approve and the page receiving its

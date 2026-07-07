@@ -99,7 +99,7 @@ export default function Home() {
 
       <footer className="mt-14 border-t border-white/10 pt-6 text-sm text-stone-500">
         Built with Next.js · Lightning payments via{" "}
-        <code className="text-stone-400">@buildonspark/lightning-mpp-sdk</code>
+        <code className="text-stone-400">@tipt/sdk</code>
       </footer>
     </main>
   );

@@ -8,6 +8,8 @@ import {
   payInvoice,
   payLightningInvoiceRaw,
   getLightningSendRequestRaw,
+  getTransferRaw,
+  createLightningInvoiceRaw,
   hasCachedWallet,
   disposeWallet,
   registerWalletEventListener,
@@ -22,9 +24,10 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
     const invoice = p.invoice as string | undefined;
     const walletRaw = p.walletRaw as string | undefined;
     const maxFeeSats = typeof p.maxFeeSats === 'number' ? p.maxFeeSats : undefined;
+    const preferSpark = typeof p.preferSpark === 'boolean' ? p.preferSpark : undefined;
     if (!invoice) return { ok: false, error: 'Missing invoice for offscreen payment.' };
     if (!walletRaw) return { ok: false, error: 'Missing wallet ciphertext for offscreen payment.' };
-    const result = await payLightningInvoiceRaw(invoice, { walletRaw, maxFeeSats });
+    const result = await payLightningInvoiceRaw(invoice, { walletRaw, maxFeeSats, preferSpark });
     return { ok: true, result };
   },
   async [MSG.OFFSCREEN_GET_SEND_REQUEST](p) {
@@ -32,6 +35,30 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
     const walletRaw = p.walletRaw as string | undefined;
     if (!id) return { ok: false, error: 'Missing id for getLightningSendRequest.' };
     const result = await getLightningSendRequestRaw(id, walletRaw);
+    return { ok: true, result };
+  },
+  async [MSG.OFFSCREEN_GET_TRANSFER](p) {
+    const id = p.id as string | undefined;
+    const walletRaw = p.walletRaw as string | undefined;
+    if (!id) return { ok: false, error: 'Missing id for getTransfer.' };
+    const result = await getTransferRaw(id, walletRaw);
+    return { ok: true, result };
+  },
+  async [MSG.OFFSCREEN_CREATE_LIGHTNING_INVOICE](p) {
+    const walletRaw = p.walletRaw as string | undefined;
+    const amountSats = typeof p.amountSats === 'number' ? p.amountSats : 0;
+    const memo = typeof p.memo === 'string' ? p.memo : '';
+    const expirySeconds = typeof p.expirySeconds === 'number' ? p.expirySeconds : undefined;
+    const includeSparkInvoice =
+      typeof p.includeSparkInvoice === 'boolean' ? p.includeSparkInvoice : undefined;
+    if (!walletRaw) return { ok: false, error: 'Missing wallet ciphertext for invoice creation.' };
+    const result = await createLightningInvoiceRaw({
+      walletRaw,
+      amountSats,
+      memo,
+      expirySeconds,
+      includeSparkInvoice,
+    });
     return { ok: true, result };
   },
   async [MSG.PREWARM_WALLET](p) {

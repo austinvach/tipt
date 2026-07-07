@@ -3,14 +3,14 @@ export const MPP_EXTENSION_EVENT = 'mpp:extension';
 // calls (payLightningInvoice / getLightningSendRequest / getTransfer) to the
 // extension, which executes them against the SparkWallet it owns and returns
 // the RAW result. All interpretation (preimage resolution, credential
-// serialization) happens page-side inside @buildonspark/lightning-mpp-sdk.
+// serialization) happens page-side inside @tipt/sdk methods.
 export const MPP_WALLET_RPC_EVENT = 'mpp:wallet-rpc';
 export const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
 
 export const MPP_EVENT_BRIDGE_PROTOCOL_VERSION = '1.0.0';
 
 export const DEFAULT_REQUESTED_PAYMENT_METHODS = ['lightning'] as const;
-export const DEFAULT_REQUESTED_INTENTS = ['charge'] as const;
+export const DEFAULT_REQUESTED_INTENTS = ['charge', 'session'] as const;
 
 export interface MppResponseDetail {
   type?: string;
@@ -28,12 +28,14 @@ export interface MppResponseDetail {
 
 /**
  * Wallet methods the extension exposes over the bridge. These mirror the
- * subset of the SparkWallet surface that `@buildonspark/lightning-mpp-sdk`'s
- * `charge` method needs to pay an invoice and resolve its preimage.
+ * subset of the SparkWallet surface that page-side methods need for charge
+ * and session flows.
  */
 export type MppWalletRpcMethod =
   | 'payLightningInvoice'
-  | 'getLightningSendRequest';
+  | 'getLightningSendRequest'
+  | 'getTransfer'
+  | 'createLightningInvoice';
 
 export interface MppWalletRpcRequestDetail {
   requestId: string;

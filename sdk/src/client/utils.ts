@@ -11,12 +11,16 @@ export interface WalletLike {
     amountSatsToSend?: number
   }): Promise<{ paymentPreimage?: string; id?: string }>
   getLightningSendRequest(id: string): Promise<{ paymentPreimage?: string; status?: string } | null>
+  getTransfer?(id: string): Promise<{
+    status?: string
+    userRequest?: { id?: string }
+  } | null>
   createLightningInvoice(params: {
     amountSats: number
     memo: string
     expirySeconds?: number
     includeSparkInvoice?: boolean
-  }): Promise<{ invoice: { encodedInvoice: string } }>
+  }): Promise<{ invoice: { encodedInvoice: string; paymentHash?: string } }>
   cleanupConnections(): Promise<void>
 }
 
@@ -40,6 +44,22 @@ export async function resolvePreimage(
     if (req?.status && failureStatuses.has(req.status)) {
       throw new Error(`Lightning payment failed: ${req.status}`)
     }
+
+    if (typeof wallet.getTransfer === 'function') {
+      const transfer = await wallet.getTransfer(result.id)
+      if (transfer?.status && failureStatuses.has(transfer.status)) {
+        throw new Error(`Spark transfer failed: ${transfer.status}`)
+      }
+      const userRequestId = transfer?.userRequest?.id
+      if (typeof userRequestId === 'string' && userRequestId.length > 0) {
+        const sparkReq = await wallet.getLightningSendRequest(userRequestId)
+        if (sparkReq?.paymentPreimage) return sparkReq.paymentPreimage
+        if (sparkReq?.status && failureStatuses.has(sparkReq.status)) {
+          throw new Error(`Lightning payment failed: ${sparkReq.status}`)
+        }
+      }
+    }
+
     await new Promise((resolve) => setTimeout(resolve, intervalMs))
   }
 

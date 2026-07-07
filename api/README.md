@@ -85,4 +85,4 @@ vercel        # preview
 vercel --prod # production
 ```
 
-> The Lightning SDK is pulled from GitHub (`@buildonspark/lightning-mpp-sdk`). Server routes run on the Node.js runtime; the SDK packages are listed in `serverExternalPackages` in `next.config.ts` so they load from `node_modules` at runtime instead of being bundled.
+> Payment methods are provided by `@tipt/sdk` (workspace package). Server routes run on the Node.js runtime.

@@ -1,10 +1,13 @@
+export { Mppx, spark, charge, session } from './client/index.js';
 export {
-  createLightningMppExtensionClient,
-  probeLightningMppExtension,
-  restoreLightningMppExtensionFetch,
-  type CreateLightningMppExtensionClientOptions,
-  type ProbeLightningMppExtensionOptions,
-} from './lightning-mpp-extension-client';
+  createExtensionClient,
+  createExtensionWallet,
+  probeExtension,
+  restoreFetch,
+  type CreateExtensionClientOptions,
+  type CreateExtensionWalletOptions,
+  type ProbeExtensionOptions,
+} from './extension.js';
 
 export {
   DEFAULT_REQUESTED_INTENTS,

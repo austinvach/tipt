@@ -15,7 +15,12 @@ const MPP_REQUEST_TRIGGERED_EVENT = 'TIPT_MPP_REQUEST_TRIGGERED';
 const WALLET_RPC_402 = 'TIPT_402_WALLET_RPC';
 const MPP_WALLET_RPC_EVENT = 'mpp:wallet-rpc';
 const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
-const WALLET_RPC_METHODS = ['payLightningInvoice', 'getLightningSendRequest'] as const;
+const WALLET_RPC_METHODS = [
+  'payLightningInvoice',
+  'getLightningSendRequest',
+  'getTransfer',
+  'createLightningInvoice',
+] as const;
 type WalletRpcMethod = (typeof WALLET_RPC_METHODS)[number];
 
 // Defensive caps. The MPP page-side surface is fully attacker-controlled —
@@ -44,7 +49,7 @@ interface WalletRpcResponse {
 }
 
 const SUPPORTED_PAYMENT_METHODS = ['lightning'] as const;
-const SUPPORTED_INTENTS = ['charge'] as const;
+const SUPPORTED_INTENTS = ['charge', 'session'] as const;
 const MPP_EXTENSION_EVENT = 'mpp:extension';
 const MPP_EVENT_BRIDGE_PROTOCOL_VERSION = '1.0.0';
 
@@ -158,7 +163,28 @@ function sanitizeWalletRpcParams(
     if (preferSpark !== undefined) out.preferSpark = preferSpark;
     return out;
   }
-  // getLightningSendRequest — a single bounded id string.
+  if (method === 'createLightningInvoice') {
+    const amountSats = p.amountSats;
+    if (typeof amountSats !== 'number' || !Number.isFinite(amountSats) || amountSats < 0) {
+      return null;
+    }
+    const out: Record<string, unknown> = { amountSats: Math.floor(amountSats) };
+    const memo = takeBoundedString(p.memo, MAX_INVOICE_LEN);
+    if (memo !== undefined) out.memo = memo;
+    if (
+      typeof p.expirySeconds === 'number'
+      && Number.isFinite(p.expirySeconds)
+      && p.expirySeconds > 0
+      && p.expirySeconds <= Number.MAX_SAFE_INTEGER
+    ) {
+      out.expirySeconds = Math.floor(p.expirySeconds);
+    }
+    const includeSparkInvoice = takeBoolean(p.includeSparkInvoice);
+    if (includeSparkInvoice !== undefined) out.includeSparkInvoice = includeSparkInvoice;
+    return out;
+  }
+
+  // getLightningSendRequest/getTransfer — a single bounded id string.
   const id = takeBoundedString(p.id, MAX_SHORT_FIELD_LEN);
   if (!id) return null;
   return { id };

@@ -7,7 +7,7 @@ import * as Methods from '../Methods.js'
 import { NETWORK_MAP } from '../constants.js'
 import { ProblemDetailsError, ProblemType } from './problem.js'
 
-export function charge(parameters: charge.Parameters) {
+export function charge(parameters: charge.Parameters): Method.AnyServer {
   const {
     mnemonic,
     network = 'mainnet',

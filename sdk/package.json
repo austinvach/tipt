@@ -1,7 +1,7 @@
 {
   "name": "@tipt/sdk",
   "version": "0.1.2",
-  "description": "Browser-side Lightning MPP client that routes 402 (Payment Required) approvals through a compatible browser extension event bridge.",
+  "description": "Unified TIPT SDK for Spark-aware MPP charge/session flows on client, server, and extension wallet bridges.",
   "license": "MIT",
   "author": "austinvach",
   "type": "module",
@@ -13,6 +13,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "import": "./dist/client/index.js",
+      "require": "./dist/client/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server/index.d.ts",
+      "import": "./dist/server/index.js",
+      "require": "./dist/server/index.cjs"
+    },
+    "./extension": {
+      "types": "./dist/extension.d.ts",
+      "import": "./dist/extension.js",
+      "require": "./dist/extension.cjs"
     }
   },
   "files": [
@@ -41,16 +56,18 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/austinvach/lightning-mpp-extension-sdk.git"
+    "url": "git+https://github.com/austinvach/tipt.git"
   },
   "bugs": {
-    "url": "https://github.com/austinvach/lightning-mpp-extension-sdk/issues"
+    "url": "https://github.com/austinvach/tipt/issues"
   },
-  "homepage": "https://github.com/austinvach/lightning-mpp-extension-sdk#readme",
+  "homepage": "https://github.com/austinvach/tipt/tree/main/sdk#readme",
   "dependencies": {
-    "@buildonspark/lightning-mpp-sdk": "^0.1.4",
+    "@buildonspark/spark-sdk": "^0.8.6",
+    "@noble/hashes": "^2.0.1",
+    "light-bolt11-decoder": "^3.2.0",
     "mppx": "^0.8.4",
-    "viem": "^2.46.2"
+    "viem": "^2.52.2"
   },
   "devDependencies": {
     "happy-dom": "^12.10.3",

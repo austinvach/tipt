@@ -1,5 +1,5 @@
 import {
-  createLightningMppExtensionClient,
+  createExtensionClient,
 } from "@tipt/sdk";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
@@ -67,9 +67,10 @@ function normalizeFilm(raw: unknown): FilmInfo | null {
 }
 
 function buildClient() {
-  return createLightningMppExtensionClient({
+  return createExtensionClient({
     polyfill: false,
     extensionProbeTimeoutMs: 1500,
+    enableSession: true,
   });
 }
 

@@ -196,7 +196,7 @@ The wire field is named `invoice` for back-compatibility with sites already inte
 
 ### SDK wrapper for automatic 402 handling
 
-The browser-side wrapper now lives in the external `lightning-mpp-extension-sdk` package and provides `createLightningMppExtensionClient()`, built on top of `@buildonspark/lightning-mpp-sdk` + `mppx` client primitives:
+The browser-side wrapper now lives in `@tipt/sdk` and provides extension bridge client creation on top of `mppx` client primitives:
 
 1. Intercepts HTTP `402` responses through `Mppx.create`.
 2. Reads the `lightning/charge` challenge and dispatches `mpp:challenge` to TIPT.

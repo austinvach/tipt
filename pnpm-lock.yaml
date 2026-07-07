@@ -10,15 +10,15 @@ importers:
 
   api:
     dependencies:
-      '@buildonspark/lightning-mpp-sdk':
-        specifier: ^0.1.4
-        version: 0.1.4(@buildonspark/spark-sdk@0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.1.0)(ws@8.21.0))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))
       '@buildonspark/spark-sdk':
         specifier: ^0.8.6
         version: 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.1.0)(ws@8.21.0)
       '@google/genai':
         specifier: ^1.44.0
         version: 1.52.0
+      '@tipt/sdk':
+        specifier: workspace:*
+        version: link:../sdk
       mppx:
         specifier: ^0.8.4
         version: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
@@ -169,14 +169,20 @@ importers:
 
   sdk:
     dependencies:
-      '@buildonspark/lightning-mpp-sdk':
-        specifier: ^0.1.4
-        version: 0.1.4(@buildonspark/spark-sdk@0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))
+      '@buildonspark/spark-sdk':
+        specifier: ^0.8.6
+        version: 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)
+      '@noble/hashes':
+        specifier: ^2.0.1
+        version: 2.2.0
+      light-bolt11-decoder:
+        specifier: ^3.2.0
+        version: 3.2.0
       mppx:
         specifier: ^0.8.4
         version: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
       viem:
-        specifier: ^2.46.2
+        specifier: ^2.52.2
         version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
     devDependencies:
       happy-dom:
@@ -270,12 +276,6 @@ packages:
 
   '@bufbuild/protobuf@2.12.1':
     resolution: {integrity: sha512-BvAMfS6LrgZiryOAZ4pBYucu4wG/Ei/9o9DZ9akbREnMLbPJiom2i8b9C8IsKErQoiKqVhrerzt3kOT/RrzLHg==}
-
-  '@buildonspark/lightning-mpp-sdk@0.1.4':
-    resolution: {integrity: sha512-8WnI3QF2obCsVSOTUJWTQWfTThmDO+1ugQQCZ7VueMBXU8M6gu4gNGgmSI0+IzmPy7EHWALJOcvKkZlap7YglA==}
-    peerDependencies:
-      '@buildonspark/spark-sdk': ^0.7.1
-      mppx: ^0.3.15
 
   '@buildonspark/spark-sdk@0.7.17':
     resolution: {integrity: sha512-0lLDSmJcZJmIsetKybjragJg2pZ0x9ECiIYNldc6NAKIWq/oQ9o12aQ8qLIHeZ3HDawJCY9G3AH+uD+QP8E24Q==}
@@ -3351,20 +3351,6 @@ snapshots:
       '@babel/helper-validator-identifier': 7.29.7
 
   '@bufbuild/protobuf@2.12.1': {}
-
-  '@buildonspark/lightning-mpp-sdk@0.1.4(@buildonspark/spark-sdk@0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.1.0)(ws@8.21.0))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))':
-    dependencies:
-      '@buildonspark/spark-sdk': 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.1.0)(ws@8.21.0)
-      '@noble/hashes': 2.2.0
-      light-bolt11-decoder: 3.2.0
-      mppx: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
-
-  '@buildonspark/lightning-mpp-sdk@0.1.4(@buildonspark/spark-sdk@0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0))(mppx@0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3)))':
-    dependencies:
-      '@buildonspark/spark-sdk': 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)
-      '@noble/hashes': 2.2.0
-      light-bolt11-decoder: 3.2.0
-      mppx: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
 
   '@buildonspark/spark-sdk@0.7.17(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)':
     dependencies:

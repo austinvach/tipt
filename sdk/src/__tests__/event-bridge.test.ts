@@ -25,7 +25,7 @@ describe('event-bridge constants', () => {
 
   it('exports default requested capabilities', () => {
     expect(DEFAULT_REQUESTED_PAYMENT_METHODS).toEqual(['lightning']);
-    expect(DEFAULT_REQUESTED_INTENTS).toEqual(['charge']);
+    expect(DEFAULT_REQUESTED_INTENTS).toEqual(['charge', 'session']);
   });
 });
 
@@ -35,16 +35,16 @@ describe('buildMppProbeRequestDetail', () => {
     expect(detail).toEqual({
       type: 'request',
       paymentMethods: ['lightning'],
-      intents: ['charge'],
+      intents: ['charge', 'session'],
     });
   });
 
   it('builds request with custom capabilities', () => {
-    const detail = buildMppProbeRequestDetail(['spark'], ['transfer']);
+    const detail = buildMppProbeRequestDetail(['lightning'], ['session']);
     expect(detail).toEqual({
       type: 'request',
-      paymentMethods: ['spark'],
-      intents: ['transfer'],
+      paymentMethods: ['lightning'],
+      intents: ['session'],
     });
   });
 
@@ -89,6 +89,22 @@ describe('wire type contracts', () => {
     };
 
     expect(request.method).toBe('getLightningSendRequest');
+  });
+
+  it('MppWalletRpcRequestDetail supports transfer and invoice methods', () => {
+    const transfer: MppWalletRpcRequestDetail = {
+      requestId: 'transfer-id',
+      method: 'getTransfer',
+      params: { id: 'transfer-abc' },
+    };
+    const invoice: MppWalletRpcRequestDetail = {
+      requestId: 'invoice-id',
+      method: 'createLightningInvoice',
+      params: { amountSats: 0, memo: 'Session refund', includeSparkInvoice: true },
+    };
+
+    expect(transfer.method).toBe('getTransfer');
+    expect(invoice.method).toBe('createLightningInvoice');
   });
 
   it('MppWalletRpcResponseDetail carries a raw result on success', () => {

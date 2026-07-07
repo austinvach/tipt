@@ -8,7 +8,19 @@ type ActiveSession = {
   preimage: string
 }
 
-export function session(parameters: session.Parameters) {
+export function session(parameters: session.Parameters): Method.AnyClient & {
+  topUp: (
+    fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+    url: string,
+  ) => Promise<Response>
+  close: (
+    fetch: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>,
+    url: string,
+  ) => Promise<Response>
+  cleanup: () => Promise<void>
+  getSession: () => Pick<ActiveSession, 'sessionId'> | null
+  resetSession: () => void
+} {
   const {
     maxFeeSats = 100,
     preferSpark = true,

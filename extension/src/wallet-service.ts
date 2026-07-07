@@ -14,7 +14,7 @@ const PREIMAGE_KEYS = ['paymentPreimage', 'preimage', 'payment_preimage'] as con
 
 // Raw wallet-result projections forwarded to the page-side SDK over the
 // bridge. We deliberately return only the string fields that
-// @buildonspark/lightning-mpp-sdk's `resolvePreimage` reads — not the whole
+// @tipt/sdk's `resolvePreimage` reads — not the whole
 // SparkWallet object — so the payload is JSON/structured-clone safe (no
 // BigInt or class instances) and leaks no extra wallet state to the page.
 // The extension does NOT interpret these: preimage resolution and credential
@@ -202,6 +202,8 @@ export interface PayOptions {
   // Pre-computed maximum fee from the caller. When omitted, we ask the SDK
   // for a fee estimate and apply the standard headroom multiplier.
   maxFeeSats?: number;
+  // When omitted, defaults to true to allow Spark route preference.
+  preferSpark?: boolean;
 }
 
 export interface PayResult {
@@ -230,7 +232,7 @@ async function payLightningInvoiceCore(
     maxFeeSats = estimated !== null ? Math.max(25, Math.ceil(estimated * 2)) : 50;
   }
 
-  const preferSpark = false;
+  const preferSpark = options.preferSpark ?? true;
   const result = await wallet.payLightningInvoice({ invoice, maxFeeSats, preferSpark });
   return result as unknown as Record<string, unknown>;
 }
@@ -244,6 +246,44 @@ export async function payLightningInvoiceRaw(
 ): Promise<WalletPayProjection> {
   const result = await payLightningInvoiceCore(invoice, options);
   return projectPayResult(result);
+}
+
+export async function createLightningInvoiceRaw(options: {
+  walletRaw: string;
+  amountSats: number;
+  memo?: string;
+  expirySeconds?: number;
+  includeSparkInvoice?: boolean;
+}): Promise<{ invoice: { encodedInvoice: string; paymentHash?: string } }> {
+  if (!cachedWallet) {
+    await ensureWalletFromBlob(options.walletRaw);
+  }
+  const wallet = cachedWallet;
+  if (!wallet) throw new Error('Wallet not initialized.');
+
+  const result = await wallet.createLightningInvoice({
+    amountSats: options.amountSats,
+    memo: options.memo ?? '',
+    ...(options.expirySeconds !== undefined ? { expirySeconds: options.expirySeconds } : {}),
+    ...(options.includeSparkInvoice !== undefined
+      ? { includeSparkInvoice: options.includeSparkInvoice }
+      : {}),
+  });
+
+  const invoice = (result as unknown as {
+    invoice?: { encodedInvoice?: string; paymentHash?: string };
+  }).invoice;
+
+  if (!invoice?.encodedInvoice) {
+    throw new Error('Failed to create Lightning invoice.');
+  }
+
+  return {
+    invoice: {
+      encodedInvoice: invoice.encodedInvoice,
+      ...(typeof invoice.paymentHash === 'string' ? { paymentHash: invoice.paymentHash } : {}),
+    },
+  };
 }
 
 // Popup send path (TIPT_PAY_INVOICE). Returns the transfer id and any

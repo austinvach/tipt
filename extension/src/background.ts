@@ -504,7 +504,7 @@ async function approveLightningPayment(
 // Wallet-RPC pay handler. Gates `payLightningInvoice` behind the approval
 // flow, then forwards it to the offscreen document and returns the RAW
 // (projected) SparkWallet result. Preimage resolution and credential building
-// happen page-side in @buildonspark/lightning-mpp-sdk.
+// happen page-side in @tipt/sdk.
 async function handleWalletPayRpc(
   params: Record<string, unknown>,
   sender: chrome.runtime.MessageSender,
@@ -532,6 +532,7 @@ async function handleWalletPayRpc(
       && params.maxFeeSats >= 0
       ? Math.floor(params.maxFeeSats)
       : undefined;
+  const preferSpark = typeof params.preferSpark === 'boolean' ? params.preferSpark : undefined;
 
   prewarmWallet();
   const amountSats = decodeBolt11AmountSats(invoice);
@@ -544,6 +545,7 @@ async function handleWalletPayRpc(
     invoice,
     walletRaw: approval.walletRaw,
     maxFeeSats,
+    preferSpark,
   });
   return { ok: true, result };
 }
@@ -571,6 +573,48 @@ async function handleWalletReadRpc(
   }
   await ensureOffscreen();
   const result = await sendOffscreenWalletRpc(msgType, { id, walletRaw });
+  return { ok: true, result };
+}
+
+async function handleWalletCreateInvoiceRpc(
+  params: Record<string, unknown>,
+  sender: chrome.runtime.MessageSender,
+): Promise<WalletRpcResult> {
+  const authoritativeUrl = sender.url ?? sender.tab?.url;
+  if (!authoritativeUrl) {
+    return { ok: false, error: 'Failed to resolve request host.' };
+  }
+  const amountSats =
+    typeof params.amountSats === 'number' && Number.isFinite(params.amountSats)
+      ? Math.floor(params.amountSats)
+      : NaN;
+  if (!Number.isFinite(amountSats) || amountSats < 0) {
+    return { ok: false, error: 'Invalid amountSats.' };
+  }
+
+  const memo = nonEmptyString(params.memo) ?? '';
+  const expirySeconds =
+    typeof params.expirySeconds === 'number'
+      && Number.isFinite(params.expirySeconds)
+      && params.expirySeconds > 0
+      ? Math.floor(params.expirySeconds)
+      : undefined;
+  const includeSparkInvoice =
+    typeof params.includeSparkInvoice === 'boolean' ? params.includeSparkInvoice : undefined;
+
+  const walletRaw = await getSynced(WALLET_KEY);
+  if (!walletRaw) {
+    return { ok: false, error: 'Wallet data not found.' };
+  }
+
+  await ensureOffscreen();
+  const result = await sendOffscreenWalletRpc(MSG.OFFSCREEN_CREATE_LIGHTNING_INVOICE, {
+    walletRaw,
+    amountSats,
+    memo,
+    ...(expirySeconds !== undefined ? { expirySeconds } : {}),
+    ...(includeSparkInvoice !== undefined ? { includeSparkInvoice } : {}),
+  });
   return { ok: true, result };
 }
 
@@ -781,6 +825,10 @@ const handlers: Record<string, MessageHandler> = {
           response = await handleWalletPayRpc(params, sender);
         } else if (method === 'getLightningSendRequest') {
           response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_SEND_REQUEST, params, sender);
+        } else if (method === 'getTransfer') {
+          response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_TRANSFER, params, sender);
+        } else if (method === 'createLightningInvoice') {
+          response = await handleWalletCreateInvoiceRpc(params, sender);
         } else {
           response = { ok: false, error: 'Unsupported wallet RPC method.' };
         }

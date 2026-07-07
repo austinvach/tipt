@@ -4,7 +4,9 @@ import { Credential, Method } from 'mppx'
 import * as Methods from '../Methods.js'
 import { NETWORK_MAP, type WalletLike, resolvePreimage } from './utils.js'
 
-export function charge(parameters: charge.Parameters) {
+export function charge(parameters: charge.Parameters): Method.AnyClient & {
+  cleanup: () => Promise<void>
+} {
   const { maxFeeSats = 100, onProgress, preferSpark = true } = parameters
 
   let walletPromise: Promise<WalletLike> | null = null

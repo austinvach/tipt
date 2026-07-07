@@ -1,8 +1,8 @@
-import { Mppx, charge } from "@buildonspark/lightning-mpp-sdk/server";
+import { Mppx, spark } from "@tipt/sdk/server";
 
 const mppx = Mppx.create({
   methods: [
-    charge({
+    spark.charge({
       mnemonic: process.env.MNEMONIC!,
     }),
   ],
@@ -57,7 +57,7 @@ export async function gatedJson(
 ): Promise<Response> {
   const chargeResult = await mppx.charge({
     amount: String(opts.amount),
-    currency: "BTC",
+    currency: "sat",
     description: sanitizeHeaderText(opts.description),
     methodDetails: { invoice: "" },
   })(toChargeRequest(req));
@@ -88,7 +88,7 @@ export async function gatedBinary(
 ): Promise<Response> {
   const chargeResult = await mppx.charge({
     amount: String(opts.amount),
-    currency: "BTC",
+    currency: "sat",
     description: sanitizeHeaderText(opts.description),
     methodDetails: { invoice: "" },
   })(toChargeRequest(req));
