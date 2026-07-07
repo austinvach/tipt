@@ -30,6 +30,8 @@ export interface WalletSendRequestProjection {
 }
 export interface WalletTransferProjection {
   status?: string;
+  paymentPreimage?: string;
+  userRequestId?: string;
   userRequest?: {
     id?: string;
     paymentPreimage?: string;
@@ -180,18 +182,25 @@ export async function getTransferRaw(
   }
   if (!transfer || typeof transfer !== 'object') return null;
   const out: WalletTransferProjection = {};
+  const transferRecord = transfer as Record<string, unknown>;
   if (typeof (transfer as { status?: unknown }).status === 'string') {
     out.status = (transfer as { status: string }).status;
   }
 
+  const transferPreimage = getStringField(transferRecord, PREIMAGE_KEYS);
+  if (transferPreimage) out.paymentPreimage = transferPreimage;
+
+  const userRequestId = getStringField(transferRecord, ['userRequestId']);
+  if (userRequestId) out.userRequestId = userRequestId;
+
   const userRequest = (transfer as { userRequest?: unknown }).userRequest;
   if (userRequest && typeof userRequest === 'object') {
     const userRequestRecord = userRequest as Record<string, unknown>;
-    const userRequestId = getStringField(userRequestRecord, ['id']);
+    const nestedUserRequestId = getStringField(userRequestRecord, ['id']);
     const userRequestPreimage = getStringField(userRequestRecord, PREIMAGE_KEYS);
-    if (userRequestId || userRequestPreimage) {
+    if (nestedUserRequestId || userRequestPreimage) {
       out.userRequest = {
-        ...(userRequestId ? { id: userRequestId } : {}),
+        ...(nestedUserRequestId ? { id: nestedUserRequestId } : {}),
         ...(userRequestPreimage ? { paymentPreimage: userRequestPreimage } : {}),
       };
     }

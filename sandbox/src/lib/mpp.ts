@@ -75,6 +75,9 @@ function buildClient() {
 }
 
 function explainUnlockError(message: string): string {
+  if (message.toLowerCase().includes('extension context invalidated')) {
+    return 'TIPT extension reloaded or updated while this page was open. Reload this tab and try again.';
+  }
   if (message.includes('locked')) {
     return 'Wallet is locked. Open the extension popup and unlock with your PIN, then retry.';
   }

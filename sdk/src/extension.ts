@@ -124,6 +124,39 @@ function callWalletRpc(
   });
 }
 
+function isContextInvalidatedError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.message.toLowerCase().includes('extension context invalidated');
+}
+
+async function callWalletRpcWithRecovery(
+  method: MppWalletRpcMethod,
+  params: unknown,
+  timeoutMs: number,
+  maybeProbe: () => Promise<void>,
+): Promise<unknown> {
+  try {
+    return await callWalletRpc(method, params, timeoutMs);
+  } catch (error) {
+    if (!isContextInvalidatedError(error)) {
+      throw error;
+    }
+
+    // Best-effort recovery for transient extension reloads/service-worker churn.
+    await maybeProbe();
+    try {
+      return await callWalletRpc(method, params, timeoutMs);
+    } catch (retryError) {
+      if (isContextInvalidatedError(retryError)) {
+        throw new Error(
+          'Extension context invalidated. Reload this tab and retry after the extension finishes reloading.',
+        );
+      }
+      throw retryError;
+    }
+  }
+}
+
 export interface CreateExtensionWalletOptions {
   paymentTimeoutMs?: number;
   walletReadTimeoutMs?: number;
@@ -154,22 +187,42 @@ export function createExtensionWallet(options: CreateExtensionWalletOptions = {}
   return {
     async payLightningInvoice(params) {
       await maybeProbe();
-      return callWalletRpc('payLightningInvoice', params, paymentTimeoutMs) as ReturnType<
+      return callWalletRpcWithRecovery(
+        'payLightningInvoice',
+        params,
+        paymentTimeoutMs,
+        maybeProbe,
+      ) as ReturnType<
         WalletLike['payLightningInvoice']
       >;
     },
     async getLightningSendRequest(id) {
-      return callWalletRpc('getLightningSendRequest', { id }, readTimeoutMs) as ReturnType<
+      return callWalletRpcWithRecovery(
+        'getLightningSendRequest',
+        { id },
+        readTimeoutMs,
+        maybeProbe,
+      ) as ReturnType<
         WalletLike['getLightningSendRequest']
       >;
     },
     async getTransfer(id) {
-      return callWalletRpc('getTransfer', { id }, readTimeoutMs) as ReturnType<
+      return callWalletRpcWithRecovery(
+        'getTransfer',
+        { id },
+        readTimeoutMs,
+        maybeProbe,
+      ) as ReturnType<
         NonNullable<WalletLike['getTransfer']>
       >;
     },
     async createLightningInvoice(params) {
-      return callWalletRpc('createLightningInvoice', params, readTimeoutMs) as ReturnType<
+      return callWalletRpcWithRecovery(
+        'createLightningInvoice',
+        params,
+        readTimeoutMs,
+        maybeProbe,
+      ) as ReturnType<
         WalletLike['createLightningInvoice']
       >;
     },
