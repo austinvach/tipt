@@ -7,6 +7,11 @@ import * as Methods from '../Methods.js'
 import { NETWORK_MAP } from '../constants.js'
 import { ProblemDetailsError, ProblemType } from './problem.js'
 
+function normalizeHex(value: string): string {
+  const trimmed = value.trim().toLowerCase()
+  return trimmed.startsWith('0x') ? trimmed.slice(2) : trimmed
+}
+
 type SessionState = {
   paymentHash: string
   depositSats: number
@@ -204,8 +209,17 @@ export function session(parameters: session.Parameters): Method.AnyServer & {
       const { payload } = credential
 
       if (payload.action === 'open') {
-        const actualHash = bytesToHex(sha256(hexToBytes(payload.preimage)))
-        if (actualHash !== request.paymentHash) {
+        if (!request.paymentHash) {
+          throw new ProblemDetailsError({
+            type: ProblemType.SessionNotFound,
+            title: 'Missing Payment Hash',
+            status: 422,
+            detail: 'Missing paymentHash in challenge request for open action',
+          })
+        }
+
+        const actualHash = bytesToHex(sha256(hexToBytes(normalizeHex(payload.preimage))))
+        if (actualHash !== normalizeHex(request.paymentHash)) {
           throw new ProblemDetailsError({
             type: ProblemType.InvalidPreimage,
             title: 'Invalid Preimage',
@@ -327,8 +341,17 @@ export function session(parameters: session.Parameters): Method.AnyServer & {
           })
         }
 
-        const actualHash = bytesToHex(sha256(hexToBytes(payload.topUpPreimage)))
-        if (actualHash !== request.paymentHash) {
+        if (!request.paymentHash) {
+          throw new ProblemDetailsError({
+            type: ProblemType.SessionNotFound,
+            title: 'Missing Payment Hash',
+            status: 422,
+            detail: 'Missing paymentHash in challenge request for topUp action',
+          })
+        }
+
+        const actualHash = bytesToHex(sha256(hexToBytes(normalizeHex(payload.topUpPreimage))))
+        if (actualHash !== normalizeHex(request.paymentHash)) {
           throw new ProblemDetailsError({
             type: ProblemType.InvalidPreimage,
             title: 'Invalid Top-Up Preimage',
@@ -528,8 +551,8 @@ function storeKey(sessionId: string): string {
 }
 
 function assertPreimage(preimage: string, expectedHash: string): void {
-  const actualHash = bytesToHex(sha256(hexToBytes(preimage)))
-  if (actualHash !== expectedHash) {
+  const actualHash = bytesToHex(sha256(hexToBytes(normalizeHex(preimage))))
+  if (actualHash !== normalizeHex(expectedHash)) {
     throw new ProblemDetailsError({
       type: ProblemType.InvalidPreimage,
       title: 'Invalid Session Credential',

@@ -7,6 +7,11 @@ import * as Methods from '../Methods.js'
 import { NETWORK_MAP } from '../constants.js'
 import { ProblemDetailsError, ProblemType } from './problem.js'
 
+function normalizeHex(value: string): string {
+  const trimmed = value.trim().toLowerCase()
+  return trimmed.startsWith('0x') ? trimmed.slice(2) : trimmed
+}
+
 export function charge(parameters: charge.Parameters): Method.AnyServer {
   const {
     mnemonic,
@@ -67,7 +72,7 @@ export function charge(parameters: charge.Parameters): Method.AnyServer {
     },
 
     async verify({ credential }) {
-      const preimage = credential.payload.preimage
+      const preimage = normalizeHex(credential.payload.preimage)
       const methodDetails = credential.challenge.request.methodDetails
       if (!methodDetails?.invoice || !methodDetails.paymentHash) {
         throw new ProblemDetailsError({
@@ -95,7 +100,7 @@ export function charge(parameters: charge.Parameters): Method.AnyServer {
         })
       }
 
-      const expectedHash = methodDetails.paymentHash
+      const expectedHash = normalizeHex(methodDetails.paymentHash)
       const actualHash = bytesToHex(sha256(hexToBytes(preimage)))
 
       if (!expectedHash || actualHash !== expectedHash) {

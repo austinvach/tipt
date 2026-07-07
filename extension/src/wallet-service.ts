@@ -30,6 +30,10 @@ export interface WalletSendRequestProjection {
 }
 export interface WalletTransferProjection {
   status?: string;
+  userRequest?: {
+    id?: string;
+    paymentPreimage?: string;
+  };
 }
 
 // Extracts a preimage already present on a payment/transfer/request object
@@ -179,6 +183,20 @@ export async function getTransferRaw(
   if (typeof (transfer as { status?: unknown }).status === 'string') {
     out.status = (transfer as { status: string }).status;
   }
+
+  const userRequest = (transfer as { userRequest?: unknown }).userRequest;
+  if (userRequest && typeof userRequest === 'object') {
+    const userRequestRecord = userRequest as Record<string, unknown>;
+    const userRequestId = getStringField(userRequestRecord, ['id']);
+    const userRequestPreimage = getStringField(userRequestRecord, PREIMAGE_KEYS);
+    if (userRequestId || userRequestPreimage) {
+      out.userRequest = {
+        ...(userRequestId ? { id: userRequestId } : {}),
+        ...(userRequestPreimage ? { paymentPreimage: userRequestPreimage } : {}),
+      };
+    }
+  }
+
   return out;
 }
 

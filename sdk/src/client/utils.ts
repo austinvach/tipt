@@ -13,7 +13,7 @@ export interface WalletLike {
   getLightningSendRequest(id: string): Promise<{ paymentPreimage?: string; status?: string } | null>
   getTransfer?(id: string): Promise<{
     status?: string
-    userRequest?: { id?: string }
+    userRequest?: { id?: string; paymentPreimage?: string }
   } | null>
   createLightningInvoice(params: {
     amountSats: number
@@ -49,6 +49,9 @@ export async function resolvePreimage(
       const transfer = await wallet.getTransfer(result.id)
       if (transfer?.status && failureStatuses.has(transfer.status)) {
         throw new Error(`Spark transfer failed: ${transfer.status}`)
+      }
+      if (transfer?.userRequest?.paymentPreimage) {
+        return transfer.userRequest.paymentPreimage
       }
       const userRequestId = transfer?.userRequest?.id
       if (typeof userRequestId === 'string' && userRequestId.length > 0) {
