@@ -238,40 +238,22 @@ export interface CreateExtensionClientOptions extends CreateExtensionWalletOptio
   network?: 'mainnet' | 'regtest' | 'signet';
   maxFeeSats?: number;
   preferSpark?: boolean;
-  includeSparkInvoice?: boolean;
-  enableSession?: boolean;
 }
 
 export function createExtensionClient(options: CreateExtensionClientOptions = {}): Mppx.Mppx {
   const wallet = createExtensionWallet(options);
 
-  const methods = [
+  return Mppx.create({
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    polyfill: options.polyfill ?? true,
+    methods: [
     spark.charge({
       wallet,
       ...(options.network ? { network: options.network } : {}),
       ...(options.maxFeeSats !== undefined ? { maxFeeSats: options.maxFeeSats } : {}),
       ...(options.preferSpark !== undefined ? { preferSpark: options.preferSpark } : {}),
     }),
-  ];
-
-  if (options.enableSession) {
-    methods.push(
-      spark.session({
-        wallet,
-        ...(options.network ? { network: options.network } : {}),
-        ...(options.maxFeeSats !== undefined ? { maxFeeSats: options.maxFeeSats } : {}),
-        ...(options.preferSpark !== undefined ? { preferSpark: options.preferSpark } : {}),
-        ...(options.includeSparkInvoice !== undefined
-          ? { includeSparkInvoice: options.includeSparkInvoice }
-          : {}),
-      }),
-    );
-  }
-
-  return Mppx.create({
-    ...(options.fetch ? { fetch: options.fetch } : {}),
-    polyfill: options.polyfill ?? true,
-    methods,
+    ],
   });
 }
 

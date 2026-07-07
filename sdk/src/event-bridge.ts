@@ -10,7 +10,7 @@ export const MPP_WALLET_RPC_RESPONSE_EVENT = 'mpp:wallet-rpc-response';
 export const MPP_EVENT_BRIDGE_PROTOCOL_VERSION = '1.0.0';
 
 export const DEFAULT_REQUESTED_PAYMENT_METHODS = ['lightning'] as const;
-export const DEFAULT_REQUESTED_INTENTS = ['charge', 'session'] as const;
+export const DEFAULT_REQUESTED_INTENTS = ['charge'] as const;
 
 export interface MppResponseDetail {
   type?: string;
@@ -28,8 +28,7 @@ export interface MppResponseDetail {
 
 /**
  * Wallet methods the extension exposes over the bridge. These mirror the
- * subset of the SparkWallet surface that page-side methods need for charge
- * and session flows.
+ * subset of the SparkWallet surface that page-side charge flow needs.
  */
 export type MppWalletRpcMethod =
   | 'payLightningInvoice'

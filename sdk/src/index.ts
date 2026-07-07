@@ -1,4 +1,4 @@
-export { Mppx, spark, charge, session } from './client/index.js';
+export { Mppx, spark, charge } from './client/index.js';
 export {
   createExtensionClient,
   createExtensionWallet,

@@ -1,5 +1,4 @@
 export { charge } from './Charge.js'
-export { session } from './Session.js'
 export { spark } from './Methods.js'
 export { Mppx, Expires, Store } from 'mppx/server'
 export { ProblemDetailsError, ProblemType, toProblemResponse } from './problem.js'

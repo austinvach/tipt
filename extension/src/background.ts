@@ -576,48 +576,6 @@ async function handleWalletReadRpc(
   return { ok: true, result };
 }
 
-async function handleWalletCreateInvoiceRpc(
-  params: Record<string, unknown>,
-  sender: chrome.runtime.MessageSender,
-): Promise<WalletRpcResult> {
-  const authoritativeUrl = sender.url ?? sender.tab?.url;
-  if (!authoritativeUrl) {
-    return { ok: false, error: 'Failed to resolve request host.' };
-  }
-  const amountSats =
-    typeof params.amountSats === 'number' && Number.isFinite(params.amountSats)
-      ? Math.floor(params.amountSats)
-      : NaN;
-  if (!Number.isFinite(amountSats) || amountSats < 0) {
-    return { ok: false, error: 'Invalid amountSats.' };
-  }
-
-  const memo = nonEmptyString(params.memo) ?? '';
-  const expirySeconds =
-    typeof params.expirySeconds === 'number'
-      && Number.isFinite(params.expirySeconds)
-      && params.expirySeconds > 0
-      ? Math.floor(params.expirySeconds)
-      : undefined;
-  const includeSparkInvoice =
-    typeof params.includeSparkInvoice === 'boolean' ? params.includeSparkInvoice : undefined;
-
-  const walletRaw = await getSynced(WALLET_KEY);
-  if (!walletRaw) {
-    return { ok: false, error: 'Wallet data not found.' };
-  }
-
-  await ensureOffscreen();
-  const result = await sendOffscreenWalletRpc(MSG.OFFSCREEN_CREATE_LIGHTNING_INVOICE, {
-    walletRaw,
-    amountSats,
-    memo,
-    ...(expirySeconds !== undefined ? { expirySeconds } : {}),
-    ...(includeSparkInvoice !== undefined ? { includeSparkInvoice } : {}),
-  });
-  return { ok: true, result };
-}
-
 // ---------------------------------------------------------------------------
 // Wallet prewarm (mpp:challenge → spin up offscreen + SparkWallet SDK)
 // ---------------------------------------------------------------------------
@@ -827,8 +785,6 @@ const handlers: Record<string, MessageHandler> = {
           response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_SEND_REQUEST, params, sender);
         } else if (method === 'getTransfer') {
           response = await handleWalletReadRpc(MSG.OFFSCREEN_GET_TRANSFER, params, sender);
-        } else if (method === 'createLightningInvoice') {
-          response = await handleWalletCreateInvoiceRpc(params, sender);
         } else {
           response = { ok: false, error: 'Unsupported wallet RPC method.' };
         }

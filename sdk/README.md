@@ -3,8 +3,8 @@
 Unified TIPT SDK for Spark-aware MPP flows.
 
 This package provides:
-- Client methods (`charge`, `session`) for browser apps.
-- Server methods (`charge`, `session`) for issuing/verifying MPP challenges.
+- Client method (`charge`) for browser apps.
+- Server method (`charge`) for issuing/verifying MPP challenges.
 - Extension wallet bridge helpers so browser clients can route wallet calls through TIPT extension approval.
 
 ## Install

@@ -70,7 +70,6 @@ function buildClient() {
   return createExtensionClient({
     polyfill: false,
     extensionProbeTimeoutMs: 1500,
-    enableSession: true,
   });
 }
 
