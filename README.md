@@ -70,9 +70,6 @@ Then fill in at least:
 
 - MNEMONIC
 - MPP_SECRET_KEY
-
-For /api/image also set:
-
 - AI_INTEGRATIONS_GEMINI_API_KEY
 
 ### 3) Build SDK once
