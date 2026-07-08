@@ -1,11 +1,11 @@
-import { MOVIES } from "@/lib/data/movies";
+import { NEWS } from "@/lib/api/data/news";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   return Response.json(
-    MOVIES.map(({ videoUrl: _videoUrl, bitcoin, ...movie }) => ({
-      ...movie,
+    NEWS.map(({ fullArticle: _fullArticle, bitcoin, ...item }) => ({
+      ...item,
       price: String(bitcoin),
       currency: "BTC",
     })),

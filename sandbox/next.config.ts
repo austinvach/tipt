@@ -1,16 +1,13 @@
 import type { NextConfig } from "next";
 
-const apiOrigin = process.env.NEXT_PUBLIC_API_BASE_URL || "https://tiptapi.vercel.app/api";
-
 const nextConfig: NextConfig = {
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${apiOrigin}/:path*`,
-      },
-    ];
-  },
+  // Native / non-bundleable server SDKs load from node_modules at runtime.
+  serverExternalPackages: [
+    "@buildonspark/spark-sdk",
+    "mppx",
+    "viem",
+    "@google/genai",
+  ],
 };
 
 export default nextConfig;

@@ -1,17 +1,26 @@
 import { Mppx, spark } from "@tipt/sdk/server";
 import { BodyDigest, Challenge } from "mppx";
 
-const mppx = Mppx.create({
-  methods: [
-    spark.charge({
-      mnemonic: process.env.MNEMONIC!,
-    }),
-    spark.spark({
-      mnemonic: process.env.MNEMONIC!,
-    }),
-  ],
-  secretKey: process.env.MPP_SECRET_KEY!,
-});
+function getMppx() {
+  const mnemonic = process.env.MNEMONIC;
+  const secretKey = process.env.MPP_SECRET_KEY;
+
+  if (!mnemonic) {
+    throw new Error("Missing MNEMONIC environment variable.");
+  }
+
+  if (!secretKey) {
+    throw new Error("Missing MPP_SECRET_KEY environment variable.");
+  }
+
+  return Mppx.create({
+    methods: [
+      spark.charge({ mnemonic }),
+      spark.spark({ mnemonic }),
+    ],
+    secretKey,
+  });
+}
 
 type ChargeMethod = "bitcoin" | "spark";
 const CHARGE_METHODS: ChargeMethod[] = ["bitcoin", "spark"];
@@ -81,6 +90,7 @@ function composeCharge(
   req: Request,
   opts: { amount: number; description: string },
 ) {
+  const mppx = getMppx();
   const description = sanitizeHeaderText(opts.description);
   return mppx.compose(
     [
@@ -107,6 +117,7 @@ async function maybeBindDigestChallenges(
   opts: { amount: number; description: string },
   challengeResponse: Response,
 ): Promise<Response> {
+  const mppx = getMppx();
   const digest = await computeRequestDigest(req);
   if (!digest) return challengeResponse;
 

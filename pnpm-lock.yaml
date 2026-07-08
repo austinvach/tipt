@@ -123,12 +123,21 @@ importers:
 
   sandbox:
     dependencies:
+      '@buildonspark/spark-sdk':
+        specifier: ^0.8.6
+        version: 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.1.0)(ws@8.21.0)
+      '@google/genai':
+        specifier: ^1.44.0
+        version: 1.52.0
       '@tipt/sdk':
         specifier: workspace:*
         version: link:../sdk
       lucide-react:
         specifier: ^0.545.0
         version: 0.545.0(react@19.1.0)
+      mppx:
+        specifier: ^0.8.4
+        version: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
       next:
         specifier: ^15.5.4
         version: 15.5.20(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
@@ -138,6 +147,9 @@ importers:
       react-dom:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
+      viem:
+        specifier: ^2.52.2
+        version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
     devDependencies:
       '@tailwindcss/postcss':
         specifier: ^4.1.14

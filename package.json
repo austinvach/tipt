@@ -5,8 +5,7 @@
   "packageManager": "pnpm@11.7.0",
   "scripts": {
     "dev:extension": "pnpm --filter @tipt/extension dev",
-    "dev:api": "pnpm --filter @tipt/api dev",
-    "dev:sandbox": "pnpm --filter @tipt/sandbox dev",
+    "dev:web": "pnpm --filter @tipt/web dev",
     "dev:sdk": "pnpm --filter @tipt/sdk dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r --if-present typecheck",

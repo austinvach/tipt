@@ -1,5 +1,5 @@
-import { MOVIES } from "@/lib/data/movies";
-import { gatedJson } from "@/lib/payments";
+import { MOVIES } from "@/lib/api/data/movies";
+import { gatedJson } from "@/lib/api/payments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

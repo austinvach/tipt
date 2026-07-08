@@ -1,7 +1,6 @@
 packages:
   - extension
-  - api
-  - sandbox
+  - web
   - sdk
 
 allowBuilds:

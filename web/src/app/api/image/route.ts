@@ -1,5 +1,5 @@
-import { gatedBinary } from "@/lib/payments";
-import { generateImage } from "@/lib/gemini";
+import { gatedBinary } from "@/lib/api/payments";
+import { generateImage } from "@/lib/api/gemini";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
