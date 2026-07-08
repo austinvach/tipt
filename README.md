@@ -131,9 +131,6 @@ PORT=5000 pnpm run dev:api
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
 ```
 
-This sets the sandbox rewrite target. Browser requests still go to same-origin `/api/*`, so CORS is not required.
-If you change `NEXT_PUBLIC_API_BASE_URL`, restart the sandbox dev server.
-
 Open the sandbox URL printed by Next.js (usually `http://localhost:3000`).
 
 ### 7) First-run wallet flow
