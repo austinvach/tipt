@@ -8,52 +8,6 @@ importers:
 
   .: {}
 
-  api:
-    dependencies:
-      '@buildonspark/spark-sdk':
-        specifier: ^0.8.6
-        version: 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.1.0)(ws@8.21.0)
-      '@google/genai':
-        specifier: ^1.44.0
-        version: 1.52.0
-      '@tipt/sdk':
-        specifier: workspace:*
-        version: link:../sdk
-      mppx:
-        specifier: ^0.8.4
-        version: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
-      next:
-        specifier: ^15.5.4
-        version: 15.5.20(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
-      react:
-        specifier: 19.1.0
-        version: 19.1.0
-      react-dom:
-        specifier: 19.1.0
-        version: 19.1.0(react@19.1.0)
-      viem:
-        specifier: ^2.52.2
-        version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
-    devDependencies:
-      '@tailwindcss/postcss':
-        specifier: ^4.1.14
-        version: 4.3.2
-      '@types/node':
-        specifier: ^25.3.3
-        version: 25.9.4
-      '@types/react':
-        specifier: ^19.2.0
-        version: 19.2.17
-      '@types/react-dom':
-        specifier: ^19.2.0
-        version: 19.2.3(@types/react@19.2.17)
-      tailwindcss:
-        specifier: ^4.1.14
-        version: 4.3.2
-      typescript:
-        specifier: ~5.9.3
-        version: 5.9.3
-
   extension:
     dependencies:
       '@buildonspark/spark-sdk':
@@ -121,7 +75,38 @@ importers:
         specifier: ^8.0.1
         version: 8.1.2(@types/node@24.13.2)(esbuild@0.28.1)(jiti@2.7.0)(yaml@2.9.0)
 
-  sandbox:
+  sdk:
+    dependencies:
+      '@buildonspark/spark-sdk':
+        specifier: ^0.8.6
+        version: 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)
+      '@noble/hashes':
+        specifier: ^2.0.1
+        version: 2.2.0
+      light-bolt11-decoder:
+        specifier: ^3.2.0
+        version: 3.2.0
+      mppx:
+        specifier: ^0.8.4
+        version: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
+      viem:
+        specifier: ^2.52.2
+        version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
+    devDependencies:
+      happy-dom:
+        specifier: ^12.10.3
+        version: 12.10.3
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.16)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ~5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^1.0.4
+        version: 1.6.1(@types/node@25.9.4)(happy-dom@12.10.3)(lightningcss@1.32.0)
+
+  web:
     dependencies:
       '@buildonspark/spark-sdk':
         specifier: ^0.8.6
@@ -178,37 +163,6 @@ importers:
       typescript:
         specifier: ~5.9.3
         version: 5.9.3
-
-  sdk:
-    dependencies:
-      '@buildonspark/spark-sdk':
-        specifier: ^0.8.6
-        version: 0.8.8(bare-buffer@3.6.1)(bare-events@2.9.1)(bare-pipe@4.2.2(bare-buffer@3.6.1))(react@19.2.7)(ws@8.21.0)
-      '@noble/hashes':
-        specifier: ^2.0.1
-        version: 2.2.0
-      light-bolt11-decoder:
-        specifier: ^3.2.0
-        version: 3.2.0
-      mppx:
-        specifier: ^0.8.4
-        version: 0.8.4(typescript@5.9.3)(viem@2.54.1(typescript@5.9.3)(zod@4.4.3))
-      viem:
-        specifier: ^2.52.2
-        version: 2.54.1(typescript@5.9.3)(zod@4.4.3)
-    devDependencies:
-      happy-dom:
-        specifier: ^12.10.3
-        version: 12.10.3
-      tsup:
-        specifier: ^8.3.5
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.16)(typescript@5.9.3)(yaml@2.9.0)
-      typescript:
-        specifier: ~5.9.3
-        version: 5.9.3
-      vitest:
-        specifier: ^1.0.4
-        version: 1.6.1(@types/node@25.9.4)(happy-dom@12.10.3)(lightningcss@1.32.0)
 
 packages:
 

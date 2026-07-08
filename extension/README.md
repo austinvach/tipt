@@ -72,37 +72,18 @@ pnpm --filter @tipt/extension run build
 
 ## Local Stack Integration
 
-To test end-to-end with local sandbox + API:
+To test end-to-end with local web app + extension:
 
-1. Run API (from repo root):
-
-PowerShell:
-
-```powershell
-$env:PORT=5000; pnpm run dev:api
-```
-
-bash:
+1. Configure env for API routes in the web app:
 
 ```bash
-PORT=5000 pnpm run dev:api
+cp web/.env.example web/.env.local
 ```
 
-2. Run sandbox against local API (from repo root):
-
-PowerShell:
-
-```powershell
-$env:NEXT_PUBLIC_API_BASE_URL="http://localhost:5000/api"; pnpm run dev:sandbox
-```
-
-bash:
+2. Run the web app (from repo root):
 
 ```bash
-NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
+pnpm run dev:web
 ```
 
-This sets the sandbox rewrite target. Browser requests remain same-origin at `/api/*`, so CORS is not required.
-Restart sandbox after changing `NEXT_PUBLIC_API_BASE_URL`.
-
-3. Open sandbox (usually `http://localhost:3000`) and approve payment prompts in the extension.
+3. Open the app (usually `http://localhost:3000`) and test `/sandbox` routes, approving payment prompts in the extension.
