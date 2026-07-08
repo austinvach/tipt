@@ -24,6 +24,7 @@ export interface MppResponseDetail {
   supportsRequestedPaymentMethods?: boolean;
   supportsRequestedIntents?: boolean;
   walletConfigured?: boolean;
+  preferSparkPayments?: boolean;
 }
 
 /**

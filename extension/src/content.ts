@@ -71,6 +71,7 @@ const announcement = {
 // the background yet" — surfaced to the page as `undefined` so consumers
 // can distinguish "unknown" from "definitely missing".
 let cachedWalletConfigured: boolean | undefined;
+let cachedPreferSparkPayments: boolean | undefined;
 let cachedRequestedPaymentMethods: string[] | undefined;
 let cachedRequestedIntents: string[] | undefined;
 
@@ -102,6 +103,7 @@ function dispatchAnnouncement(): void {
     detail: {
       ...announcement,
       walletConfigured: cachedWalletConfigured,
+      preferSparkPayments: cachedPreferSparkPayments,
       requestedPaymentMethods: cachedRequestedPaymentMethods,
       requestedIntents: cachedRequestedIntents,
       supportsRequestedPaymentMethods: supportsRequested(
@@ -212,15 +214,20 @@ window.addEventListener(MPP_EXTENSION_EVENT, (event: Event) => {
   const now = Date.now();
   if (now - lastMppRequestAt >= MPP_REQUEST_THROTTLE_MS) {
     lastMppRequestAt = now;
-    sendRuntimeMessage<{ ok?: boolean; walletConfigured?: boolean }>({ type: MPP_REQUEST_TRIGGERED_EVENT })
+    sendRuntimeMessage<{ ok?: boolean; walletConfigured?: boolean; preferSparkPayments?: boolean }>({ type: MPP_REQUEST_TRIGGERED_EVENT })
       .then((response) => {
         if (response && typeof response.walletConfigured === 'boolean') {
-          const changed = cachedWalletConfigured !== response.walletConfigured;
+          const walletChanged = cachedWalletConfigured !== response.walletConfigured;
           cachedWalletConfigured = response.walletConfigured;
+          let preferenceChanged = false;
+          if (typeof response.preferSparkPayments === 'boolean') {
+            preferenceChanged = cachedPreferSparkPayments !== response.preferSparkPayments;
+            cachedPreferSparkPayments = response.preferSparkPayments;
+          }
           // Only re-announce when the state actually changed (or this is
           // the first time we've learned it). Avoids a duplicate event on
           // every page load once the cache is warm.
-          if (changed) dispatchAnnouncement();
+          if (walletChanged || preferenceChanged) dispatchAnnouncement();
         }
       })
       .catch(() => { /* SW unreachable; the cached value (if any) stands. */ });

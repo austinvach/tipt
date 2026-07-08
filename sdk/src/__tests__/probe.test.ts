@@ -63,6 +63,28 @@ describe('probeExtension', () => {
     expect(response.protocolVersion).toBe('1.0.0');
   });
 
+  it('preserves extension Spark preference in the probe response', async () => {
+    const promise = probeExtension({ timeoutMs: 2000 });
+
+    setTimeout(() => {
+      const evt = new CustomEvent(MPP_EXTENSION_EVENT, {
+        detail: {
+          type: 'response',
+          protocolVersion: MPP_EVENT_BRIDGE_PROTOCOL_VERSION,
+          paymentMethods: ['lightning', 'spark'],
+          intents: ['charge'],
+          supportsRequestedPaymentMethods: true,
+          supportsRequestedIntents: true,
+          preferSparkPayments: true,
+        },
+      });
+      window.dispatchEvent(evt);
+    }, 100);
+
+    const response = await promise;
+    expect(response.preferSparkPayments).toBe(true);
+  });
+
   it('rejects on protocol version mismatch', async () => {
     const promise = probeExtension({ timeoutMs: 2000 });
 

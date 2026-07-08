@@ -21,5 +21,5 @@ export interface PersistedConfirmDetails {
   invoice: string;
   amountSats: number | null;
   expiresAt: number;
-  paymentKind?: 'lightning';
+  paymentKind?: 'lightning' | 'spark';
 }

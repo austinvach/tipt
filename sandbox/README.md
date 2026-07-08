@@ -20,7 +20,7 @@ pnpm run build
 
 - App: Next.js frontend rooted in `src/app`.
 - SDK: Uses `@tipt/sdk` extension client (`createExtensionClient`).
-- API target: `/api` by default (rewritten to hosted API), or local API via `NEXT_PUBLIC_API_BASE_URL`.
+- API target: Browser calls use same-origin `/api`; Next rewrites proxy to hosted API by default or a custom target via `NEXT_PUBLIC_API_BASE_URL`.
 
 Project commands:
 
@@ -67,6 +67,8 @@ bash:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
 ```
 
+This sets the rewrite destination only. Browser requests still call `/api/*`, so CORS headers are not required.
+
 ### 4) Open the app
 
 Next.js prints the local URL (usually `http://localhost:3000`).
@@ -85,13 +87,9 @@ By default, sandbox requests to `/api/*` are rewritten to the hosted API:
 /api/* -> https://tiptapi.vercel.app/api/*
 ```
 
-To use local API, set `NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api`.
+To use local API, set `NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api` and restart the sandbox dev server.
 
-Optional: route client to same-origin `/api` instead:
-
-```bash
-NEXT_PUBLIC_API_BASE_URL=/api
-```
+The client already uses same-origin `/api`; this variable controls where that route is proxied.
 
 ## Deploying To Vercel
 

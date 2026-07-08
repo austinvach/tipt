@@ -17,6 +17,29 @@ const DEFAULT_PAYMENT_TIMEOUT_MS = 90_000;
 const DEFAULT_WALLET_READ_TIMEOUT_MS = 15_000;
 const DEFAULT_EXTENSION_PROBE_TIMEOUT_MS = 1_500;
 
+type ChargeCandidateLike = {
+  challenge: {
+    method: string;
+    intent: string;
+  };
+};
+
+function prioritisePreferredChargeMethod<candidate extends ChargeCandidateLike>(
+  candidates: readonly candidate[],
+  preferSparkPayments: boolean,
+): readonly candidate[] {
+  if (!preferSparkPayments || candidates.length < 2) return candidates;
+
+  const getPriority = (candidate_: candidate): number => {
+    if (candidate_.challenge.intent !== 'charge') return 1;
+    if (candidate_.challenge.method === 'spark') return 0;
+    if (candidate_.challenge.method === 'bitcoin') return 1;
+    return 1;
+  };
+
+  return [...candidates].sort((left, right) => getPriority(left) - getPriority(right));
+}
+
 function requirePageEventBridge(): void {
   if (typeof window === 'undefined') {
     throw new Error('TIPT SDK extension bridge requires a browser window context.');
@@ -75,6 +98,67 @@ export function probeExtension(options: ProbeExtensionOptions = {}): Promise<Mpp
       }
       cleanup();
       resolve(detail);
+    };
+
+    const cleanup = () => {
+      window.clearTimeout(timer);
+      window.removeEventListener(MPP_EXTENSION_EVENT, onResponse as EventListener);
+    };
+
+    window.addEventListener(MPP_EXTENSION_EVENT, onResponse as EventListener);
+    window.dispatchEvent(new CustomEvent(MPP_EXTENSION_EVENT, {
+      detail: buildMppProbeRequestDetail(paymentMethods, intents),
+    }));
+  });
+}
+
+function probeExtensionPreference(options: ProbeExtensionOptions = {}): Promise<boolean> {
+  requirePageEventBridge();
+  const timeoutMs = options.timeoutMs ?? DEFAULT_EXTENSION_PROBE_TIMEOUT_MS;
+  const paymentMethods = options.paymentMethods ?? [...DEFAULT_REQUESTED_PAYMENT_METHODS];
+  const intents = options.intents ?? [...DEFAULT_REQUESTED_INTENTS];
+
+  return new Promise<boolean>((resolve, reject) => {
+    let lastDetail: MppResponseDetail | undefined;
+    const timer = window.setTimeout(() => {
+      cleanup();
+      if (lastDetail) {
+        resolve(lastDetail.preferSparkPayments === true);
+        return;
+      }
+      reject(new Error('TIPT extension was not detected on this page.'));
+    }, timeoutMs);
+
+    const onResponse = (event: Event) => {
+      const detail = (event as CustomEvent<MppResponseDetail>).detail;
+      if (detail?.type !== 'response') return;
+      if (
+        detail.protocolVersion !== undefined
+        && detail.protocolVersion !== MPP_EVENT_BRIDGE_PROTOCOL_VERSION
+      ) {
+        cleanup();
+        reject(
+          new Error(
+            `Extension protocol version ${detail.protocolVersion} is incompatible with SDK protocol version ${MPP_EVENT_BRIDGE_PROTOCOL_VERSION}.`,
+          ),
+        );
+        return;
+      }
+      if (detail.supportsRequestedPaymentMethods === false) {
+        cleanup();
+        reject(new Error('Extension does not support the requested payment method(s).'));
+        return;
+      }
+      if (detail.supportsRequestedIntents === false) {
+        cleanup();
+        reject(new Error('Extension does not support the requested intent(s).'));
+        return;
+      }
+
+      lastDetail = detail;
+      if (typeof detail.preferSparkPayments !== 'boolean') return;
+      cleanup();
+      resolve(detail.preferSparkPayments);
     };
 
     const cleanup = () => {
@@ -253,10 +337,29 @@ export interface CreateExtensionClientOptions extends CreateExtensionWalletOptio
 
 export function createExtensionClient(options: CreateExtensionClientOptions = {}): Mppx.Mppx {
   const wallet = createExtensionWallet(options);
+  const extensionProbeTimeoutMs =
+    options.extensionProbeTimeoutMs ?? DEFAULT_EXTENSION_PROBE_TIMEOUT_MS;
+  let cachedPreferSparkPayments: boolean | undefined;
+
+  async function resolvePreferSparkPayments(): Promise<boolean> {
+    if (typeof cachedPreferSparkPayments === 'boolean') {
+      return cachedPreferSparkPayments;
+    }
+    cachedPreferSparkPayments = await probeExtensionPreference({
+      timeoutMs: extensionProbeTimeoutMs,
+      paymentMethods: options.paymentMethods,
+      intents: options.intents,
+    });
+    return cachedPreferSparkPayments;
+  }
 
   return Mppx.create({
     ...(options.fetch ? { fetch: options.fetch } : {}),
     polyfill: options.polyfill ?? true,
+    orderChallenges: async (candidates) => prioritisePreferredChargeMethod(
+      candidates,
+      await resolvePreferSparkPayments(),
+    ),
     methods: [
     spark.charge({
       wallet,

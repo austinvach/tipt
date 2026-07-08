@@ -24,6 +24,8 @@ interface ReadyScreenProps {
   onBackup: () => void;
   onDelete: () => void;
   onTrustedSites: () => void;
+  preferSparkPayments: boolean;
+  onPreferSparkPaymentsChange: (value: boolean) => void;
 
   // Balance
   satsDisplay: string;
@@ -80,6 +82,8 @@ export function ReadyScreen({
   onBackup,
   onDelete,
   onTrustedSites,
+  preferSparkPayments,
+  onPreferSparkPaymentsChange,
   satsDisplay,
   usdDisplay,
   usdPrimary,
@@ -105,7 +109,13 @@ export function ReadyScreen({
 }: ReadyScreenProps) {
   return (
     <div className="flex flex-col flex-1 space-y-3">
-      <ReadyHeader onBackup={onBackup} onDelete={onDelete} onTrustedSites={onTrustedSites} />
+      <ReadyHeader
+        onBackup={onBackup}
+        onDelete={onDelete}
+        onTrustedSites={onTrustedSites}
+        preferSparkPayments={preferSparkPayments}
+        onPreferSparkPaymentsChange={onPreferSparkPaymentsChange}
+      />
 
       <>
         <BalanceCard

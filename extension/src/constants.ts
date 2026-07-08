@@ -1,5 +1,6 @@
 export const PIN_KEY = 'spark_pin';
 export const WALLET_KEY = 'spark_wallet';
+export const PREFER_SPARK_PAYMENTS_KEY = 'tipt_prefer_spark_payments';
 
 // SECURITY: We no longer persist the plaintext PIN anywhere. The
 // PIN-derived non-extractable AES-GCM CryptoKey is cached in shared

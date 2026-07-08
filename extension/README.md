@@ -102,4 +102,7 @@ bash:
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
 ```
 
+This sets the sandbox rewrite target. Browser requests remain same-origin at `/api/*`, so CORS is not required.
+Restart sandbox after changing `NEXT_PUBLIC_API_BASE_URL`.
+
 3. Open sandbox (usually `http://localhost:3000`) and approve payment prompts in the extension.

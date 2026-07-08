@@ -3,6 +3,7 @@
 import { log } from './lib/logger';
 import { ensureOffscreen } from './lib/offscreen';
 import { clearUnlockKey } from './lib/key-store';
+import { getPreferSparkPayments } from './lib/payment-preferences';
 import { isInternalSender } from './lib/runtime';
 import { getSynced } from './lib/storage';
 import { nonEmptyString } from './lib/object-helpers';
@@ -433,6 +434,7 @@ async function approveLightningPayment(
   amountSats: number | null,
   host: string,
   sender: chrome.runtime.MessageSender,
+  paymentKind: PaymentKind,
 ): Promise<{ ok: true; walletRaw: string } | { ok: false; error: string }> {
   // Wallet-existence gate. Precedes tryAutoApprove: a host the user
   // previously allowlisted must not silently auto-approve into a payment we
@@ -467,7 +469,7 @@ async function approveLightningPayment(
         amountSats: amountSats ?? undefined,
       },
     };
-    const prompt = await promptForPaymentApproval(payload, host, amountSats, 'lightning');
+    const prompt = await promptForPaymentApproval(payload, host, amountSats, paymentKind);
     approved = !!prompt.approved;
     remember = !!prompt.remember;
     caps = prompt.caps;
@@ -532,12 +534,19 @@ async function handleWalletPayRpc(
       && params.maxFeeSats >= 0
       ? Math.floor(params.maxFeeSats)
       : undefined;
-  const preferSpark = typeof params.preferSpark === 'boolean' ? params.preferSpark : undefined;
+  const storedPreferSpark = await getPreferSparkPayments();
+  const preferSpark = typeof params.preferSpark === 'boolean' ? params.preferSpark : storedPreferSpark;
 
   prewarmWallet();
   const amountSats = decodeBolt11AmountSats(invoice);
 
-  const approval = await approveLightningPayment(invoice, amountSats, host, sender);
+  const approval = await approveLightningPayment(
+    invoice,
+    amountSats,
+    host,
+    sender,
+    'lightning',
+  );
   if (!approval.ok) return approval;
 
   await ensureOffscreen();
@@ -578,7 +587,7 @@ async function handleWalletTransferRpc(
   }
 
   prewarmWallet();
-  const approval = await approveLightningPayment(receiverSparkAddress, amountSats, host, sender);
+  const approval = await approveLightningPayment(receiverSparkAddress, amountSats, host, sender, 'spark');
   if (!approval.ok) return approval;
 
   await ensureOffscreen();
@@ -712,6 +721,13 @@ const handlers: Record<string, MessageHandler> = {
         // surface the eventual failure to the user.
       }
 
+      let preferSparkPayments = false;
+      try {
+        preferSparkPayments = await getPreferSparkPayments();
+      } catch {
+        preferSparkPayments = false;
+      }
+
       const iconPromise = chrome.action
         .setIcon({ tabId, path: GREEN_ICON })
         .catch(() => { /* best-effort */ });
@@ -736,7 +752,7 @@ const handlers: Record<string, MessageHandler> = {
       try {
         await Promise.all([iconPromise, badgePromise]);
       } finally {
-        sendResponse({ ok: true, walletConfigured });
+        sendResponse({ ok: true, walletConfigured, preferSparkPayments });
       }
     })();
     return true;

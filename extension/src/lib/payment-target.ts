@@ -15,7 +15,7 @@
 // start with "ln" as Lightning. (`getBolt11AmountSats` in lib/bolt11.ts
 // will independently reject anything that isn't a real invoice.)
 
-export type PaymentKind = 'lightning' | 'unknown';
+export type PaymentKind = 'lightning' | 'spark' | 'unknown';
 
 // SDK bech32m limit is 1024 chars for Spark addresses; BOLT11 invoices
 // can be a few KB. The shared cap at the page boundary is 8192 chars
@@ -38,6 +38,7 @@ export function classifyPaymentTarget(value: string): PaymentKind {
 // and the label stay together — adding a new network only touches one file.
 export function paymentKindLabel(kind: PaymentKind): string {
   switch (kind) {
+    case 'spark': return 'Spark';
     case 'lightning': return 'Lightning';
     default: return 'Unknown';
   }

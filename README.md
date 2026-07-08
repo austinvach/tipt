@@ -121,31 +121,18 @@ After each extension change, rebuild and click **Reload** on the extension card.
 
 ### 5) Run API locally (port 5000)
 
-PowerShell:
-
-```powershell
-$env:PORT=5000; pnpm run dev:api
-```
-
-bash:
-
 ```bash
 PORT=5000 pnpm run dev:api
 ```
 
 ### 6) Run sandbox against local API
 
-PowerShell:
-
-```powershell
-$env:NEXT_PUBLIC_API_BASE_URL="http://localhost:5000/api"; pnpm run dev:sandbox
-```
-
-bash:
-
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm run dev:sandbox
 ```
+
+This sets the sandbox rewrite target. Browser requests still go to same-origin `/api/*`, so CORS is not required.
+If you change `NEXT_PUBLIC_API_BASE_URL`, restart the sandbox dev server.
 
 Open the sandbox URL printed by Next.js (usually `http://localhost:3000`).
 
@@ -192,6 +179,8 @@ To use your local API instead, run sandbox with:
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:5000/api pnpm --filter @tipt/sandbox run dev
 ```
+
+This configures the rewrite destination; browser calls still use same-origin `/api/*`.
 
 Run the API locally in another terminal:
 

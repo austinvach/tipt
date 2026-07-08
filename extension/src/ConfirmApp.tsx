@@ -34,6 +34,21 @@ function getMethodPresentation(): {
   };
 }
 
+function getMethodPresentationForKind(kind: PersistedConfirmDetails['paymentKind']): {
+  label: string;
+  hint: string;
+  dotClassName: string;
+} {
+  if (kind === 'spark') {
+    return {
+      label: paymentKindLabel('spark'),
+      hint: 'Spark route',
+      dotClassName: 'bg-emerald-500',
+    };
+  }
+  return getMethodPresentation();
+}
+
 // Resize the confirm popup's chrome window so its inner content area
 // exactly matches the rendered DOM — no vertical or horizontal scroll.
 // Anchors the right edge so the popup stays glued to the top-right
@@ -143,7 +158,7 @@ export default function ConfirmApp() {
 
   const amountKnown = typeof details?.amountSats === 'number' && details.amountSats > 0;
   const canRemember = amountKnown;
-  const methodPresentation = details ? getMethodPresentation() : null;
+  const methodPresentation = details ? getMethodPresentationForKind(details.paymentKind) : null;
 
   const respond = async (approved: boolean) => {
     if (busy) return;

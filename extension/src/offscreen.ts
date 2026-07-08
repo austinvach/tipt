@@ -113,7 +113,8 @@ const handlers: Record<string, (payload: Record<string, unknown>) => Promise<Env
     if (!invoice) return { ok: false, error: 'Missing invoice.' };
     const maxFeeSats = typeof p.maxFeeSats === 'number' ? p.maxFeeSats : undefined;
     const walletRaw = p.walletRaw as string | undefined;
-    const r = await payInvoice(invoice, { maxFeeSats, walletRaw });
+    const preferSpark = typeof p.preferSpark === 'boolean' ? p.preferSpark : undefined;
+    const r = await payInvoice(invoice, { maxFeeSats, walletRaw, preferSpark });
     return { ok: true, txId: r.txId };
   },
   async [MSG.HAS_WALLET]() {

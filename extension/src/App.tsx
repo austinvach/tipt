@@ -13,6 +13,7 @@ import { MSG } from './lib/messages'
 import { getMaxFeeSats, getMaxSpendableSats } from './lib/fees'
 import { useBtcUsdRate } from './hooks/useBtcUsdRate'
 import { scrubLegacyState } from './lib/migrate-legacy'
+import { getPreferSparkPayments, setPreferSparkPayments } from './lib/payment-preferences'
 import type { WalletTransfer } from './lib/transfers'
 import type { SendStep } from './lib/send-types'
 import {
@@ -178,6 +179,7 @@ export default function App() {
   const [invoiceCopied, setInvoiceCopied] = useState(false);
   const [balanceFlash, setBalanceFlash] = useState(false);
   const [usdPrimary, setUsdPrimary] = useState(false);
+  const [preferSparkPayments, setPreferSparkPaymentsState] = useState(false);
   const [recentTransfers, setRecentTransfers] = useState<WalletTransfer[]>([]);
   const [loadingTransfers, setLoadingTransfers] = useState(false);
   const [transfersError, setTransfersError] = useState<string | null>(null);
@@ -195,6 +197,24 @@ export default function App() {
   // full explanation; doInitWallet drains this ref when it first hydrates
   // walletData so an early event never gets lost.
   const pendingBalanceRef = useRef<bigint | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const value = await getPreferSparkPayments();
+        if (!cancelled) setPreferSparkPaymentsState(value);
+      } catch {
+        if (!cancelled) setPreferSparkPaymentsState(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const handlePreferSparkPaymentsChange = useCallback((value: boolean) => {
+    setPreferSparkPaymentsState(value);
+    void setPreferSparkPayments(value);
+  }, []);
 
   const downloadBackupFile = useCallback(async (verifiedKey?: CryptoKey) => {
     let mnemonic = walletData?.mnemonic ?? '';
@@ -874,6 +894,7 @@ export default function App() {
           invoice: pendingBolt11,
           maxFeeSats,
           walletRaw: walletRaw ?? undefined,
+          preferSpark: preferSparkPayments,
         },
       });
 
@@ -1003,6 +1024,8 @@ export default function App() {
           onBackup={() => { beginPinAction('backup'); }}
           onDelete={() => { beginPinAction('delete'); }}
           onTrustedSites={() => { setAppState('trusted-sites'); }}
+          preferSparkPayments={preferSparkPayments}
+          onPreferSparkPaymentsChange={handlePreferSparkPaymentsChange}
           satsDisplay={satsDisplay}
           usdDisplay={usdDisplay}
           usdPrimary={usdPrimary}

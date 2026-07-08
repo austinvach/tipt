@@ -2,7 +2,12 @@ import {
   createExtensionClient,
 } from "@tipt/sdk";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
+const configuredApiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+// Keep browser requests same-origin so Next.js rewrites handle proxying and
+// we avoid CORS when targeting a local API host.
+const API_BASE = configuredApiBase && /^https?:\/\//i.test(configuredApiBase)
+  ? "/api"
+  : (configuredApiBase || "/api");
 const MPP_EXTENSION_EVENT = "mpp:extension";
 
 export interface FilmInfo {
