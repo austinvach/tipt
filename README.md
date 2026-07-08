@@ -103,7 +103,7 @@ Open the URL printed by Next.js (usually http://localhost:3000).
 
 ### 6) Validate routes
 
-- /: landing page for SDK/API/Sandbox
+- /: landing page for Extension/SDK/API/Sandbox
 - /api: API documentation page
 - /sandbox: interactive payment demos
 
