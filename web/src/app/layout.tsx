@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "../index.css";
 
 export const metadata: Metadata = {
-  title: "TIPT — SDK, API, and Sandbox",
+  title: "TIPT — The Internet Payment Toolkit",
   description: "TIPT single web app with landing page, API docs, and interactive 402 sandbox demos.",
 };
 

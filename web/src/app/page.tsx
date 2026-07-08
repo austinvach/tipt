@@ -12,7 +12,7 @@ export default function HomePage() {
            The Internet Payment Toolkit
         </h1>
         <p className="mt-4 max-w-3xl text-base text-muted-foreground sm:text-lg">
-          A collection of open source, non-custodial tools that make micropayments easy.
+          A collection of open source, non-custodial tools that make online payments easy.
         </p>
 
         <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
